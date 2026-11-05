@@ -47,9 +47,11 @@ interface TextFieldProps {
   error?: string | undefined
   hint?: string
   required?: boolean
-  type?: 'text' | 'email' | 'tel' | 'date' | 'search'
+  type?: 'text' | 'email' | 'tel' | 'date' | 'datetime-local' | 'search'
   inputMode?: 'decimal' | 'text'
   maxLength?: number
+  max?: string
+  min?: string
   disabled?: boolean
   placeholder?: string
 }
@@ -78,7 +80,7 @@ interface SelectFieldProps {
   options: readonly Option[]
   onChange: (value: string) => void
   error?: string | undefined
-  hint?: string
+  hint?: string | undefined
   required?: boolean
   disabled?: boolean
   /** Texto de la opción vacía; si se omite no hay opción vacía. */
@@ -113,6 +115,44 @@ export function SelectField({
             </option>
           ))}
         </select>
+      )}
+    </FieldShell>
+  )
+}
+
+interface TextAreaFieldProps {
+  label: string
+  value: string
+  onChange: (value: string) => void
+  error?: string | undefined
+  hint?: string
+  required?: boolean
+  maxLength?: number
+  rows?: number
+  disabled?: boolean
+}
+
+export function TextAreaField({
+  label,
+  error,
+  hint,
+  required,
+  onChange,
+  rows = 3,
+  ...textarea
+}: TextAreaFieldProps) {
+  return (
+    <FieldShell label={label} error={error} hint={hint} required={required}>
+      {(aria) => (
+        <textarea
+          {...aria}
+          {...textarea}
+          rows={rows}
+          required={required}
+          onChange={(event) => {
+            onChange(event.target.value)
+          }}
+        />
       )}
     </FieldShell>
   )
