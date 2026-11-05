@@ -10,7 +10,7 @@ API_PREFIX = "/api/v1"
 
 def create_app() -> FastAPI:
     settings = get_settings()
-    app = FastAPI(title="Gestión de mantenimiento correctivo", version="0.3.0")
+    app = FastAPI(title="Gestión de mantenimiento correctivo", version="0.4.0")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
