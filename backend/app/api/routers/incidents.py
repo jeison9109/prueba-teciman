@@ -8,6 +8,8 @@ from app.models.enums import IncidentStatus, Priority
 from app.schemas.common import Page, PageParams
 from app.schemas.incident import (
     AssignInput,
+    HistoryItem,
+    HistoryParams,
     IncidentCreate,
     IncidentDetail,
     IncidentOut,
@@ -32,6 +34,17 @@ def list_incidents(
     return service.list_incidents(
         session, page, machine_id=machine_id, status=status_, priority=priority
     )
+
+
+@router.get("/history", response_model=Page[HistoryItem])
+def list_history(
+    session: SessionDep,
+    page: Annotated[PageParams, Query()],
+    filters: Annotated[HistoryParams, Query()],
+) -> Page[HistoryItem]:
+    """Histórico de conocimiento: solo averías resueltas y cerradas, por resolución
+    descendente. `machine_id`, `symptom`, `root_cause` y `q` se combinan con AND."""
+    return service.list_history(session, page, filters)
 
 
 @router.post("", response_model=IncidentDetail, status_code=status.HTTP_201_CREATED)

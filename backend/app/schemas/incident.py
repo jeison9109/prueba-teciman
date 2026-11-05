@@ -131,6 +131,44 @@ class IncidentDetail(IncidentOut):
     updated_at: datetime
 
 
+SearchText = Annotated[Annotated[str, Field(max_length=200)] | None, BlankToNone]
+
+
+class HistoryParams(BaseModel):
+    """Filtros del histórico de conocimiento. Se combinan con AND; los vacíos se ignoran."""
+
+    machine_id: Id | None = None
+    symptom: SearchText = Field(None, description="Coincidencia parcial en el síntoma")
+    root_cause: SearchText = Field(None, description="Coincidencia parcial en la causa raíz")
+    q: SearchText = Field(
+        None,
+        description="Coincidencia parcial en código o nombre de máquina, título, síntoma, "
+        "causa o solución",
+    )
+
+
+class HistoryItem(BaseModel):
+    """Avería resuelta o cerrada con la documentación útil para reparaciones futuras."""
+
+    id: int
+    number: str
+    status: IncidentStatus
+    title: str
+    failure_type: FailureType
+    machine: MachineRef
+    detected_at: datetime
+    resolved_at: datetime
+    closed_at: datetime | None
+    assigned_technician: PersonRef | None
+    symptom: str
+    root_cause: str
+    solution: str
+    solution_type: SolutionType | None
+    replaced_parts: str | None
+    worked_minutes: int
+    downtime_hours: float | None
+
+
 class WorkLogOut(BaseModel):
     id: int
     incident_id: int
