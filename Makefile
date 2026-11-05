@@ -28,6 +28,10 @@ migrate:
 seed:
 	$(COMPOSE) exec backend python -m scripts.seed_demo
 
+# Recorrido completo de la demo contra la API (escribe una máquina y una avería nuevas).
+walkthrough:
+	$(COMPOSE) exec backend python -m scripts.walkthrough
+
 # --- Dependencias locales ---
 install:
 	$(BACKEND) uv sync
