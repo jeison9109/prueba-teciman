@@ -11,6 +11,7 @@ dependencies = [
     "psycopg[binary]>=3.2",
     "pydantic>=2.7",
     "pydantic-settings>=2.3",
+    "tzdata>=2024.1",
 ]
 
 [dependency-groups]
@@ -45,3 +46,5 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+# Aviso interno de FastAPI/Starlette sobre httpx; no afecta a las pruebas.
+filterwarnings = ["ignore:Using `httpx` with `starlette.testclient`"]
