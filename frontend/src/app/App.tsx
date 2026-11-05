@@ -1,4 +1,5 @@
 import { NavLink, Navigate, Route, Routes } from 'react-router'
+import { HistoryPage } from '../features/history/HistoryPage'
 import { IncidentCreatePage } from '../features/incidents/IncidentCreatePage'
 import { IncidentDetailPage } from '../features/incidents/IncidentDetailPage'
 import { IncidentListPage } from '../features/incidents/IncidentListPage'
@@ -33,6 +34,7 @@ function Content() {
       <Route path="/averias" element={<IncidentListPage />} />
       <Route path="/averias/nueva" element={<IncidentCreatePage />} />
       <Route path="/averias/:id" element={<IncidentDetailPage />} />
+      <Route path="/historico" element={<HistoryPage />} />
       <Route path="/maquinas" element={<MachineListPage />} />
       <Route path="/maquinas/nueva" element={<MachineCreatePage />} />
       <Route path="/maquinas/:id" element={<MachineDetailPage />} />
@@ -66,6 +68,7 @@ export function App() {
           <strong className="brand">Mantenimiento correctivo</strong>
           <nav aria-label="Principal">
             <NavLink to="/averias">Averías</NavLink>
+            <NavLink to="/historico">Histórico</NavLink>
             <NavLink to="/maquinas">Máquinas</NavLink>
             <NavLink to="/personas">Personas</NavLink>
             <NavLink to="/estado">Estado</NavLink>
