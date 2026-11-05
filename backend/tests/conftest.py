@@ -83,6 +83,8 @@ def api_engine(migrated_url: URL) -> Iterator[Engine]:
     engine = create_engine(migrated_url)
     with engine.begin() as connection:
         connection.execute(text(f"TRUNCATE {TABLES_IN_DELETE_ORDER} RESTART IDENTITY CASCADE"))
+        # La secuencia de numeración no pertenece a ninguna tabla: se reinicia aparte.
+        connection.execute(text("ALTER SEQUENCE incident_number_seq RESTART"))
     yield engine
     engine.dispose()
 
