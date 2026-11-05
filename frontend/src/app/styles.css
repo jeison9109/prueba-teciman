@@ -2,23 +2,271 @@
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   color: #1f2933;
   background: #f5f7fa;
+  --border: #d9e2ec;
+  --muted: #52606d;
+  --primary: #1d4ed8;
+  --danger: #b42318;
+  --ok: #1d7a46;
 }
 
 body {
   margin: 0;
 }
 
+a {
+  color: var(--primary);
+}
+
+.topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem 1.5rem;
+  padding: 0.75rem 1rem;
+  background: #fff;
+  border-bottom: 1px solid var(--border);
+}
+
+.topbar nav {
+  display: flex;
+  gap: 1rem;
+}
+
+.topbar nav a {
+  text-decoration: none;
+  padding: 0.25rem 0;
+}
+
+.topbar nav a.active {
+  font-weight: 600;
+  border-bottom: 2px solid var(--primary);
+}
+
+.actor {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
 .layout {
-  max-width: 48rem;
+  max-width: 72rem;
   margin: 0 auto;
-  padding: 2rem 1rem;
+  padding: 1.5rem 1rem 3rem;
+}
+
+.mode-notice {
+  margin: 0 0 1rem;
+  padding: 0.5rem 0.75rem;
+  background: #eef2ff;
+  border-radius: 0.375rem;
+}
+
+.page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 
 .card {
   background: #fff;
-  border: 1px solid #d9e2ec;
+  border: 1px solid var(--border);
   border-radius: 0.5rem;
   padding: 1.25rem;
+}
+
+button,
+.button {
+  font: inherit;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  background: #fff;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.button--primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.button--danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+input,
+select {
+  font: inherit;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  background: #fff;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.form {
+  display: grid;
+  gap: 0.75rem;
+  max-width: 32rem;
+}
+
+.form--grid {
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  max-width: none;
+}
+
+.form__full {
+  grid-column: 1 / -1;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.field--invalid input,
+.field--invalid select {
+  border-color: var(--danger);
+}
+
+.field__error {
+  color: var(--danger);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.confirm {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.row--retired td {
+  color: var(--muted);
+}
+
+.details {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.4rem 1.5rem;
+}
+
+.details dt {
+  color: var(--muted);
+}
+
+.details dd {
+  margin: 0;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.875rem;
+  background: #e4e7eb;
+}
+
+.badge--operativa {
+  background: #def7ec;
+  color: #03543f;
+}
+
+.badge--en_averia {
+  background: #fde8e8;
+  color: #9b1c1c;
+}
+
+.badge--fuera_de_servicio {
+  background: #fdf6b2;
+  color: #723b13;
+}
+
+.badge--de_baja {
+  background: #e4e7eb;
+  color: #3e4c59;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.empty {
+  padding: 1.5rem;
+  text-align: center;
+  background: #fff;
+  border: 1px dashed var(--border);
+  border-radius: 0.5rem;
+}
+
+.alert {
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.375rem;
+}
+
+.alert p {
+  margin: 0 0 0.5rem;
+}
+
+.alert--error {
+  background: #fde8e8;
+  color: var(--danger);
+}
+
+.alert--ok {
+  background: #def7ec;
+  color: var(--ok);
 }
 
 .status {
@@ -26,23 +274,13 @@ body {
 }
 
 .status--ok {
-  color: #1d7a46;
+  color: var(--ok);
 }
 
 .status--error {
-  color: #b42318;
+  color: var(--danger);
 }
 
 .status--pending {
-  color: #52606d;
-}
-
-dl {
-  display: flex;
-  gap: 0.5rem;
-}
-
-dd {
-  margin: 0;
-  font-family: ui-monospace, monospace;
+  color: var(--muted);
 }

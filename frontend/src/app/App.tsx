@@ -1,42 +1,72 @@
-import { useHealth, type HealthState } from './useHealth'
+import { NavLink, Navigate, Route, Routes } from 'react-router'
+import { MachineCreatePage } from '../features/machines/MachineCreatePage'
+import { MachineDetailPage } from '../features/machines/MachineDetailPage'
+import { MachineListPage } from '../features/machines/MachineListPage'
+import { PeopleListPage } from '../features/people/PeopleListPage'
+import { PersonCreatePage } from '../features/people/PersonCreatePage'
+import { PersonDetailPage } from '../features/people/PersonDetailPage'
+import { ErrorMessage, Loading } from '../shared/components/AsyncStatus'
+import { ActorProvider, useActor } from './ActorContext'
+import { ActorSelector } from './ActorSelector'
+import { SetupPage } from './SetupPage'
+import { SystemStatusPage } from './SystemStatusPage'
 
-function describe(state: HealthState): { label: string; tone: 'ok' | 'error' | 'pending' } {
-  switch (state.kind) {
-    case 'loading':
-      return { label: 'Comprobando…', tone: 'pending' }
-    case 'unreachable':
-      return { label: state.message, tone: 'error' }
-    case 'ready':
-      if (state.health.status === 'ok') return { label: 'API y base de datos operativas', tone: 'ok' }
-      if (state.health.database === 'ok') return { label: 'Base de datos sin migraciones aplicadas', tone: 'error' }
-      return { label: 'La API no puede conectar con la base de datos', tone: 'error' }
+function Content() {
+  const { state, refresh } = useActor()
+  if (state.kind === 'loading') return <Loading />
+  if (state.kind === 'error') {
+    return (
+      <>
+        <ErrorMessage message={state.message} onRetry={refresh} />
+        <SystemStatusPage />
+      </>
+    )
   }
+  if (state.data.totalPeople === 0) return <SetupPage />
+  return (
+    <Routes>
+      <Route path="/" element={<Navigate to="/maquinas" replace />} />
+      <Route path="/maquinas" element={<MachineListPage />} />
+      <Route path="/maquinas/nueva" element={<MachineCreatePage />} />
+      <Route path="/maquinas/:id" element={<MachineDetailPage />} />
+      <Route path="/personas" element={<PeopleListPage />} />
+      <Route path="/personas/nueva" element={<PersonCreatePage />} />
+      <Route path="/personas/:id" element={<PersonDetailPage />} />
+      <Route path="/estado" element={<SystemStatusPage />} />
+      <Route path="*" element={<ErrorMessage message="Página no encontrada" />} />
+    </Routes>
+  )
 }
 
-export function App() {
-  const { state, reload } = useHealth()
-  const { label, tone } = describe(state)
-  const migration = state.kind === 'ready' ? state.health.migration : null
-
+function ModeNotice() {
+  const { state, actor, isManager } = useActor()
+  if (isManager || state.kind !== 'ready' || state.data.totalPeople === 0) return null
   return (
-    <main className="layout">
-      <header>
-        <h1>Mantenimiento correctivo</h1>
-        <p>Base ejecutable. Las pantallas de máquinas, personas y averías llegan en las siguientes fases.</p>
+    <p className="mode-notice" role="note">
+      {actor
+        ? 'Tu rol solo permite consultar máquinas y personas.'
+        : 'Modo consulta. Elige una persona activa responsable para hacer cambios.'}
+    </p>
+  )
+}
+
+/** Composición global. El router lo aporta `main.tsx` (o la prueba). */
+export function App() {
+  return (
+    <ActorProvider>
+      <header className="topbar">
+        <strong className="brand">Mantenimiento correctivo</strong>
+        <nav aria-label="Principal">
+          <NavLink to="/maquinas">Máquinas</NavLink>
+          <NavLink to="/personas">Personas</NavLink>
+          <NavLink to="/estado">Estado</NavLink>
+        </nav>
+        <ActorSelector />
       </header>
-      <section className="card" aria-labelledby="health-title">
-        <h2 id="health-title">Estado del sistema</h2>
-        <p role="status" className={`status status--${tone}`}>
-          {label}
-        </p>
-        <dl>
-          <dt>Revisión del esquema</dt>
-          <dd>{migration ?? '—'}</dd>
-        </dl>
-        <button type="button" onClick={reload} disabled={state.kind === 'loading'}>
-          Volver a comprobar
-        </button>
-      </section>
-    </main>
+      <main className="layout">
+        <ModeNotice />
+        <Content />
+      </main>
+    </ActorProvider>
   )
 }
