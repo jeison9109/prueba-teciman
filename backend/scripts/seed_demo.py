@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 
 from sqlalchemy import func, select, text
@@ -219,6 +219,7 @@ PEOPLE = (
 
 H = timedelta(hours=1)
 D = timedelta(days=1)
+DAY_SHIFT_START = time(8, 15)
 
 INCIDENTS = (
     # --- Cerradas ------------------------------------------------------------------------
@@ -496,6 +497,16 @@ def _people(session: Session, report: SeedReport) -> dict[str, Person]:
     return people
 
 
+def _detection(now: datetime, ago: timedelta) -> datetime:
+    """Las de hace días se detectan a media mañana (hora local) para que la demo sea realista;
+    las de hoy, justo `ago` antes de la carga."""
+    if ago < D:
+        return now - ago
+    zone = get_settings().operation_zone
+    day = (now - ago).astimezone(zone).date()
+    return datetime.combine(day, DAY_SHIFT_START, tzinfo=zone).astimezone(UTC)
+
+
 def _incidents(
     session: Session,
     machines: dict[str, Machine],
@@ -517,7 +528,7 @@ def _incidents(
             report.existing["averías"] += 1
             continue
 
-        detected = now - seed.detected_ago
+        detected = _detection(now, seed.detected_ago)
         resolved = detected + seed.resolved_after if seed.resolved_after else None
         closed = resolved + seed.closed_after if resolved and seed.closed_after else None
         sequence = session.scalar(select(incident_number_seq.next_value()))
