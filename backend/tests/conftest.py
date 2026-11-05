@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db.session import get_session
 from app.main import app
+from tests.flow import Team
 
 BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -100,3 +101,9 @@ def client(api_engine: Engine) -> Iterator[TestClient]:
         yield TestClient(app)
     finally:
         app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def team(client: TestClient) -> Team:
+    """Responsable, operario, dos técnicos y una máquina listos para el flujo de averías."""
+    return Team(client)

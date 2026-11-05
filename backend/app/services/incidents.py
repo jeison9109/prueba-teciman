@@ -8,7 +8,18 @@ máquina (solo al registrar) y por último la avería, siguiendo el orden de
 from datetime import timedelta
 from typing import Any
 
-from sqlalchemy import ColumnElement, Numeric, Select, case, cast, extract, func, literal, select
+from sqlalchemy import (
+    ColumnElement,
+    Numeric,
+    Select,
+    case,
+    cast,
+    extract,
+    func,
+    literal,
+    or_,
+    select,
+)
 from sqlalchemy.orm import Session, aliased
 
 from app.config import get_settings
@@ -18,6 +29,8 @@ from app.models.enums import IncidentStatus, MachineAdminStatus, Priority, Role
 from app.schemas.common import Page, PageParams
 from app.schemas.incident import (
     AssignInput,
+    HistoryItem,
+    HistoryParams,
     IncidentCreate,
     IncidentDetail,
     IncidentOut,
@@ -155,6 +168,53 @@ def list_incidents(
         .limit(params.page_size)
     ).all()
     items = [IncidentOut.model_validate(_fields(row)) for row in rows]
+    return Page(items=items, total=total, page=params.page, page_size=params.page_size)
+
+
+def list_history(session: Session, params: PageParams, filters: HistoryParams) -> Page[HistoryItem]:
+    """Histórico de conocimiento: averías resueltas y cerradas, más reciente primero.
+
+    Los textos buscan coincidencia parcial sin distinguir mayúsculas (ILIKE con parámetros;
+    `%` y `_` del usuario se escapan). Incluye máquinas de baja.
+    """
+    conditions: list[ColumnElement[bool]] = [
+        Incident.status.in_((IncidentStatus.RESUELTA, IncidentStatus.CERRADA))
+    ]
+    if filters.machine_id is not None:
+        conditions.append(Incident.machine_id == filters.machine_id)
+    if filters.symptom:
+        conditions.append(Incident.symptom.icontains(filters.symptom, autoescape=True))
+    if filters.root_cause:
+        conditions.append(Incident.root_cause.icontains(filters.root_cause, autoescape=True))
+    if filters.q:
+        searched = (
+            Machine.code,
+            Machine.name,
+            Incident.title,
+            Incident.symptom,
+            Incident.root_cause,
+            Incident.solution,
+        )
+        conditions.append(
+            or_(*(column.icontains(filters.q, autoescape=True) for column in searched))
+        )
+    total = (
+        session.scalar(
+            select(func.count())
+            .select_from(Incident)
+            .join(Machine, Machine.id == Incident.machine_id)
+            .where(*conditions)
+        )
+        or 0
+    )
+    rows = session.execute(
+        _base_query()
+        .where(*conditions)
+        .order_by(Incident.resolved_at.desc(), Incident.id.desc())
+        .offset(params.offset)
+        .limit(params.page_size)
+    ).all()
+    items = [HistoryItem.model_validate(_fields(row)) for row in rows]
     return Page(items=items, total=total, page=params.page, page_size=params.page_size)
 
 

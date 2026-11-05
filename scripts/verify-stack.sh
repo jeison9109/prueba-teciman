@@ -3,7 +3,9 @@
 #
 # Levanta un proyecto de Docker Compose aparte (con su propio volumen) en puertos
 # distintos, comprueba que Alembic aplica la migración, que /api/v1/health responde y
-# que el frontend sirve la aplicación, y al terminar elimina solo ese proyecto temporal.
+# que el frontend sirve la aplicación, carga dos veces los datos demo (la segunda no debe
+# crear nada), ejecuta el recorrido completo de la demo contra la API y la pantalla de
+# histórico, y al terminar elimina solo ese proyecto temporal.
 #
 # Uso: scripts/verify-stack.sh            (usa .env si existe, si no .env.example)
 #      KEEP=1 scripts/verify-stack.sh     (deja el proyecto levantado para inspeccionarlo)
@@ -63,5 +65,25 @@ echo "Frontend sirve la aplicación y el proxy alcanza la API"
 
 echo "==> Segunda ejecución de las migraciones (debe ser un no-op)"
 compose exec -T backend alembic upgrade head
+
+echo "==> Carga de datos demo (primera vez)"
+compose exec -T backend python -m scripts.seed_demo
+
+echo "==> Carga de datos demo (segunda vez: no debe crear nada)"
+second=$(compose exec -T backend python -m scripts.seed_demo)
+echo "$second"
+if ! grep -q "máquinas: 0 nuevas.*personas: 0 nuevas.*averías: 0 nuevas.*imputaciones nuevas: 0" <<<"$second"; then
+  echo "La segunda carga demo ha creado datos: no es idempotente" >&2
+  exit 1
+fi
+
+echo "==> Recorrido completo de la demo contra la API"
+compose exec -T backend python -m scripts.walkthrough
+
+echo "==> Histórico a través del proxy del frontend"
+curl -fsS "http://localhost:${FRONTEND_PORT}/api/v1/incidents/history?q=junta%20t%C3%B3rica" \
+  | grep -q '"code":"PRE-001"'
+curl -fsS "http://localhost:${FRONTEND_PORT}/historico" | grep -q '<div id="root">'
+echo "El histórico encuentra la reparación demo y la ruta /historico sirve la aplicación"
 
 echo "==> Verificación correcta"

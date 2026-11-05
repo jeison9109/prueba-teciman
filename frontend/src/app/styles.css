@@ -369,3 +369,25 @@ textarea {
   background: #e4e7eb;
   color: #3e4c59;
 }
+
+.history-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 1rem;
+}
+
+.history-card__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.history-card__header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}

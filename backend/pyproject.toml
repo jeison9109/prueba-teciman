@@ -37,7 +37,7 @@ select = ["E", "F", "W", "I", "B", "UP", "SIM", "C4"]
 python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
-files = ["app", "tests", "migrations/env.py"]
+files = ["app", "tests", "scripts", "migrations/env.py"]
 
 [[tool.mypy.overrides]]
 module = ["alembic.*"]

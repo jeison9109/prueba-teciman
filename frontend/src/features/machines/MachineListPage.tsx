@@ -16,7 +16,7 @@ const FILTERS = ['status', 'location', 'type'] as const
 
 export function MachineListPage() {
   const { isManager } = useActor()
-  const { filters, page, setFilter, setPage, clear } = useUrlFilters(FILTERS)
+  const { filters, page, setFilter, setFilters, setPage, clear } = useUrlFilters(FILTERS)
   const query = { ...filters, page, page_size: DEFAULT_PAGE_SIZE }
   const { state, reload } = useAsyncData(JSON.stringify(query), (signal) =>
     listMachines(query, signal),
@@ -26,8 +26,7 @@ export function MachineListPage() {
 
   function applyText(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
-    setFilter('location', draft.location.trim())
-    setFilter('type', draft.type.trim())
+    setFilters({ location: draft.location.trim(), type: draft.type.trim() })
   }
 
   return (

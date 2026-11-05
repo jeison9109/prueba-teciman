@@ -4,7 +4,7 @@ import type { Option } from '../utils/options'
 interface FieldShellProps {
   label: string
   error?: string | undefined
-  hint?: string | undefined
+  hint?: ReactNode
   required?: boolean | undefined
   children: (props: {
     id: string
@@ -80,7 +80,8 @@ interface SelectFieldProps {
   options: readonly Option[]
   onChange: (value: string) => void
   error?: string | undefined
-  hint?: string | undefined
+  /** Ayuda bajo el control; admite enlaces (p. ej. a Personas). */
+  hint?: ReactNode
   required?: boolean
   disabled?: boolean
   /** Texto de la opción vacía; si se omite no hay opción vacía. */
