@@ -1,4 +1,5 @@
 import { useState, type SubmitEvent } from 'react'
+import { Link } from 'react-router'
 import { ErrorMessage } from '../../shared/components/AsyncStatus'
 import { SelectField } from '../../shared/components/Field'
 import { useTechnicianOptions } from '../people/useTechnicianOptions'
@@ -41,7 +42,11 @@ export function TechnicianPicker({
         onChange={setValue}
         error={error}
         emptyLabel={state.kind === 'loading' ? 'Cargando…' : 'Selecciona un técnico activo'}
-        hint={state.kind === 'ready' && options.length === 0 ? 'No hay otros técnicos activos' : undefined}
+        hint={
+          state.kind === 'ready' && options.length === 0 ? (
+            <NoTechnicians reassigning={excludeId !== undefined} />
+          ) : undefined
+        }
         required
       />
       <button type="submit" className="button--primary" disabled={pending || !value}>
@@ -49,5 +54,18 @@ export function TechnicianPicker({
       </button>
       {state.kind === 'error' && <ErrorMessage message={state.message} onRetry={reload} />}
     </form>
+  )
+}
+
+/** Sin técnicos que elegir: explica por qué y lleva a Personas para darlos de alta. */
+function NoTechnicians({ reassigning }: { reassigning: boolean }) {
+  return (
+    <>
+      {reassigning
+        ? 'No hay otro técnico activo al que reasignar.'
+        : 'No hay ningún técnico activo.'}{' '}
+      <Link to="/personas/nueva">Da de alta un técnico</Link> o reactiva uno en{' '}
+      <Link to="/personas?role=tecnico">Personas</Link>.
+    </>
   )
 }

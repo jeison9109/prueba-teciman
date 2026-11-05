@@ -149,6 +149,23 @@ describe('averías', () => {
     expect(within(reassign).queryByRole('option', { name: /Tomás/ })).not.toBeInTheDocument()
   })
 
+  it('sin técnicos activos explica el motivo y enlaza a Personas', async () => {
+    mockApi(withIncident({}, [[/^GET \/people\?role=tecnico/, () => ({ body: page([]) })]]))
+    renderAt('/averias/1', 1)
+
+    const select = await screen.findByLabelText(/^Técnico/)
+    const hint = await screen.findByText(/No hay ningún técnico activo/)
+    expect(select.getAttribute('aria-describedby')).toContain(hint.id)
+    expect(within(hint).getByRole('link', { name: 'Da de alta un técnico' })).toHaveAttribute(
+      'href',
+      '/personas/nueva',
+    )
+    expect(within(hint).getByRole('link', { name: 'Personas' })).toHaveAttribute(
+      'href',
+      '/personas?role=tecnico',
+    )
+  })
+
   it('solo el técnico asignado ve iniciar; el operario no ve acciones', async () => {
     mockApi(withIncident({ status: 'asignada', assigned_technician: tomas }))
     const { unmount } = renderAt('/averias/1', 2)
