@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { boss, machine, mockApi, page, technician, type Route } from '../test/mockApi'
+import { boss, incident, machine, mockApi, page, technician, type Route } from '../test/mockApi'
 import { App } from './App'
 
 function renderAt(path: string) {
@@ -41,6 +41,7 @@ describe('App', () => {
         },
       ],
       [/^GET \/machines/, () => ({ body: page([]) })],
+      [/^GET \/incidents/, () => ({ body: page([]) })],
     ])
     renderAt('/')
 
@@ -51,7 +52,7 @@ describe('App', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Crear responsable' }))
 
-    expect(await screen.findByRole('heading', { name: 'Máquinas' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Averías' })).toBeInTheDocument()
     const post = calls.find((call) => call.method === 'POST')
     expect(post?.headers.get('X-Actor-Id')).toBeNull()
     expect(post?.body).toMatchObject({ full_name: 'Rosa Responsable', role: 'responsable' })
@@ -74,7 +75,7 @@ describe('App', () => {
       true,
     )
     expect(screen.queryByRole('link', { name: 'Nueva máquina' })).not.toBeInTheDocument()
-    expect(screen.getByRole('note')).toHaveTextContent('Tu rol solo permite consultar')
+    expect(screen.getByRole('note')).toHaveTextContent('Máquinas y personas solo se consultan')
 
     fireEvent.change(screen.getByLabelText('Persona activa'), { target: { value: '1' } })
     expect(await screen.findByRole('link', { name: 'Nueva máquina' })).toBeInTheDocument()
@@ -132,11 +133,21 @@ describe('App', () => {
     mockApi([
       ...peopleRoutes([boss]),
       [/^GET \/machines\/7$/, () => ({ body: { ...machine, worked_minutes: 75, open_incidents: 1 } })],
+      [/^GET \/incidents\?machine_id=7/, () => ({ body: page([incident]) })],
     ])
     localStorage.setItem('mantenimiento.actorId', '1')
     renderAt('/maquinas/7')
 
     expect(await screen.findByText('1,25 h')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Dar de baja' })).toBeDisabled()
+    const history = await screen.findByRole('table')
+    expect(within(history).getByRole('link', { name: 'AV-2026-0001' })).toHaveAttribute(
+      'href',
+      '/averias/1',
+    )
+    expect(screen.getByRole('link', { name: 'Registrar avería en esta máquina' })).toHaveAttribute(
+      'href',
+      '/averias/nueva?machine_id=7',
+    )
   })
 })
