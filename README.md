@@ -4,10 +4,11 @@ Prueba técnica de Téciman Digital. El enunciado original está en
 [requerimiento.md](requerimiento.md), el contrato funcional en [spec.md](spec.md) y la guía de
 arquitectura y trabajo en [AGENTS.md](AGENTS.md).
 
-**Estado: Fase 2 (catálogos).** Además de la base ejecutable, hay API y pantallas de máquinas y
-personas con filtros, fichas, edición y bajas lógicas, y un selector de persona activa que simula
-la identidad. El flujo de averías, el histórico y los datos de demostración llegan en las fases 3
-y 4.
+**Estado: Fase 3 (flujo de averías).** Sobre la base ejecutable y los catálogos de máquinas y
+personas, se registran averías y se llevan de abiertas a cerradas (asignar, reasignar, iniciar,
+imputar, resolver y cerrar) desde la API y la interfaz, con el historial de averías en la ficha de
+cada máquina. El histórico de conocimiento (`/incidents/history`), los datos de demostración y el
+recorrido completo desde un arranque limpio llegan en la Fase 4.
 
 ## Stack
 
@@ -45,6 +46,12 @@ Compose levanta tres servicios:
 **Primer uso.** Con la base vacía, la aplicación pide crear el primer responsable y lo deja como
 persona activa. Desde ahí se dan de alta máquinas y el resto de personas. Los datos de
 demostración llegarán con un script explícito en la Fase 4.
+
+**Recorrido de una avería.** Con un responsable, un operario, dos técnicos y una máquina dados de
+alta, cambia la «Persona activa» de la cabecera para actuar como cada uno: el operario registra la
+avería en *Averías → Registrar avería*, el responsable la asigna desde el detalle, el técnico
+asignado la inicia, cualquier técnico imputa horas, el asignado la resuelve y un responsable la
+cierra. El detalle solo muestra las acciones que la persona activa puede hacer en ese estado.
 
 Si ya usas alguno de esos puertos, cambia `POSTGRES_PORT`, `BACKEND_PORT` o `FRONTEND_PORT` en
 `.env`.
@@ -129,11 +136,28 @@ Qué cubren ahora:
 - API de personas: alta inicial, validación de email y coste, filtros, bloqueo de baja y cambio de
   rol de un técnico con averías a su cargo, último responsable activo (también con dos bajas
   simultáneas), reactivación y conservación de relaciones.
+- API de averías (`tests/test_incidents_api.py`): recorrido completo de la spec (un operario
+  reporta una parada, un responsable asigna, el técnico inicia, dos técnicos imputan 1,25 h y
+  0,75 h, el asignado resuelve y un responsable cierra; el detalle suma 2 h y los totales de
+  máquina y técnico cuadran), numeración, detección futura o sin zona, máquina de baja, saltos de
+  estado, permisos por rol y por técnico asignado, asignación a inactivos o no técnicos,
+  resolución sin causa o solución, imputaciones negativas, cero, de 0,10 h, numéricas en vez de
+  texto, anteriores a la detección, futuras o fuera de «en curso», reasignación con imputaciones
+  conservadas, dos paradas simultáneas con cambio de condición administrativa durante la parada,
+  filtros, orden y paginación de la bandeja e historial tras la baja de la máquina.
+- Concurrencia (`tests/test_concurrency.py`, hilos con sesiones propias contra PostgreSQL): dos
+  asignaciones de la misma avería, asignación frente a baja del técnico, registro frente a baja
+  de la máquina y dos resoluciones frente a una imputación. Se comprobó que quitar los bloqueos
+  hace fallar estas pruebas.
 - Frontend: alta del primer responsable, filtros leídos de la URL, acciones ocultas a quien no es
   responsable, envío de `X-Actor-Id`, errores junto a cada campo, bajas bloqueadas con su motivo,
-  formato de horas y fechas, y la página de estado.
+  formato de horas y fechas y la página de estado. En averías: acciones ofrecidas por actor y
+  estado, bandeja con filtros en la URL, alta con errores de la API por campo, asignación,
+  imputación con coma decimal y validación previa de tramos, resolución, cierre, horas en la zona
+  de operación y el historial en la ficha de máquina.
 
-Las averías e imputaciones de estas pruebas se insertan con SQL porque su API llega en la Fase 3.
+Algunas pruebas de máquinas y personas siguen insertando averías con SQL para preparar estados
+concretos (`tests/factories.py`).
 
 ## Configuración
 
@@ -153,7 +177,7 @@ La elegida se recuerda en el navegador (`localStorage`) y el cliente HTTP la env
 tenga el rol necesario. Es una simulación local sin autenticación real. Las lecturas no necesitan
 actor. Con «Solo consulta» la interfaz oculta las acciones de gestión.
 
-## API (Fase 2)
+## API
 
 Documentación interactiva en http://localhost:8000/docs. Prefijo `/api/v1`.
 
@@ -161,6 +185,10 @@ Documentación interactiva en http://localhost:8000/docs. Prefijo `/api/v1`.
 | --- | --- | --- |
 | Máquinas | `GET/POST /machines`, `GET/PATCH/DELETE /machines/{id}` | `status` (estado efectivo), `location` y `type` (coincidencia parcial sin distinguir mayúsculas) |
 | Personas | `GET/POST /people`, `GET/PATCH/DELETE /people/{id}` | `role`, `active` |
+| Averías | `GET/POST /incidents`, `GET /incidents/{id}` | `machine_id`, `status`, `priority` (se combinan) |
+| Acciones | `POST /incidents/{id}/assign`, `/reassign`, `/start`, `/resolve`, `/close` | |
+| Imputaciones | `GET/POST /incidents/{id}/work-logs` | |
+| Configuración | `GET /config` (zona de operación para la interfaz) | |
 
 - Listados con `page` y `page_size` (25 por defecto, máximo 100) que devuelven `items`, `total`,
   `page` y `page_size`. Máquinas por código y personas por nombre, con desempate por ID. Incluyen
@@ -172,6 +200,33 @@ Documentación interactiva en http://localhost:8000/docs. Prefijo `/api/v1`.
   cambia los campos enviados, `null` vacía un opcional y rechaza vaciar un obligatorio.
 - `DELETE` es una baja lógica (`204`, idempotente): la máquina pasa a `de_baja` y la persona a
   inactiva. Se conservan todos los registros y relaciones.
+
+**Averías.** Ciclo de vida de la spec, solo mediante acciones explícitas:
+
+| Acción | De → a | Quién (`X-Actor-Id`) | Cuerpo |
+| --- | --- | --- | --- |
+| `POST /incidents` | — → abierta | Cualquier persona activa; queda como reportante | `machine_id`, `detected_at`, `title`, `symptom`, `failure_type`, `priority`, `machine_stopped` |
+| `assign` | abierta → asignada | Responsable activo | `technician_id` (técnico activo) |
+| `reassign` | asignada o en curso, sin cambiar | Responsable activo | `technician_id` (otro técnico activo) |
+| `start` | asignada → en curso | El técnico asignado | — |
+| `resolve` | en curso → resuelta | El técnico asignado | `root_cause`, `solution` y opcionales `replaced_parts`, `solution_type`, `preventive_recommendation` |
+| `close` | resuelta → cerrada | Responsable activo; queda como validador | — |
+| `POST …/work-logs` | solo en curso | Cualquier técnico activo, a su nombre | `work_date`, `hours` (texto, p. ej. `"1.25"`), `description` |
+
+- El número `AV-<año>-<n>` lo genera el servidor con la secuencia global y el año de la zona de
+  operación. Las horas de resolución y cierre son las del servidor.
+- La bandeja ordena por detección descendente con desempate por ID. Cada avería incluye máquina
+  (con su estado efectivo), reportante, técnico, `worked_minutes` y `downtime_hours`. El detalle
+  añade síntoma, documentación de la resolución, validador y fechas.
+- `downtime_hours` se calcula en SQL: horas entre detección y resolución con dos decimales, `0`
+  si no hubo parada y `null` mientras la parada siga abierta.
+- Las imputaciones admiten horas positivas en tramos de 0,25 h (máximo 24 por registro) y se
+  guardan en minutos. La fecha de trabajo va del día local de la detección al día local actual.
+- Códigos propios: `incident_invalid_transition` (409, salto de estado), `actor_not_assigned`
+  (403, no es el técnico asignado), `technician_inactive` (409), `not_a_technician`,
+  `technician_not_found` y `same_technician` (422), `machine_retired` (409, máquina de baja),
+  `machine_not_found` (422), `detected_in_future`, `work_date_before_detection` y
+  `work_date_in_future` (422), `incident_not_in_progress` (409) e `incident_not_found` (404).
 
 **Formato de error.** Todas las respuestas de error comparten esta forma:
 
@@ -193,6 +248,11 @@ persona afectada y, si cambia rol o vigencia, todos los responsables activos) en
 por ID ascendente, después máquinas y después averías. Tras los bloqueos se repiten las consultas
 de comprobación. Ver `backend/app/services/locking.py`.
 
+En averías: actor y técnico implicado se bloquean con `FOR SHARE` (una baja o cambio de rol
+concurrente espera y después ve la asignación), la máquina con `FOR SHARE` al registrar (no se
+puede dar de baja a la vez) y la avería con `FOR UPDATE`, que serializa todas las escrituras sobre
+ella. Estado, actor y técnico asignado se comprueban con los bloqueos ya tomados.
+
 ## Esquema inicial
 
 La migración `0001` crea las tablas `machines`, `people`, `incidents` y `work_logs` y la
@@ -213,25 +273,26 @@ Restricciones en la base de datos:
   resolución.
 - Imputaciones en minutos enteros, positivos y múltiplos de 15.
 
-Las reglas que dependen de otras filas o del momento actual se aplicarán en los servicios de las
-fases 2 y 3, dentro de la transacción y con bloqueos de fila. Entre ellas: rol técnico del
-asignado, persona activa, imputación no anterior al día de detección, detección no futura y
-estado efectivo de la máquina.
+Las reglas que dependen de otras filas o del momento actual se aplican en los servicios, dentro
+de la transacción y con bloqueos de fila: rol técnico del asignado, persona activa, imputación no
+anterior al día de detección, detección no futura y estado efectivo de la máquina. La Fase 3 no
+necesita cambios de esquema, así que no hay migración nueva.
 
 ## Decisiones respecto al enunciado
 
 - **Estado de la máquina.** Se guarda el estado administrativo (`operativa`,
-  `fuera_de_servicio`, `de_baja`). `en_averia` no se guarda: la API lo derivará de las averías
+  `fuera_de_servicio`, `de_baja`). `en_averia` no se guarda: la API lo deriva de las averías
   abiertas, asignadas o en curso que causan parada, como indica la spec. Así, al resolver la
   última parada se recupera la condición previa sin tener que recordarla aparte.
 - **Tipo y ubicación de máquina** son texto obligatorio y no una lista cerrada. El enunciado da
   ejemplos (prensa, CNC…), pero la spec no fija valores y los necesita para filtrar.
 - **Criticidad** es obligatoria. La spec la define como lista cerrada sin valor por defecto.
-- **Horas imputadas** se guardan como minutos enteros (spec). La API recibirá horas decimales en
-  tramos de 0,25 h.
+- **Horas imputadas** se guardan como minutos enteros (spec). La API recibe horas decimales como
+  texto en tramos de 0,25 h. Admite punto o coma decimal y rechaza números JSON. Se fija un máximo
+  de 24 h por imputación como límite coherente, que la spec no concreta.
 - **Tiempo de parada** no se guarda: se calcula en el backend a partir de detección y resolución.
-- **Numeración de averías.** La secuencia existe desde la migración inicial. La composición
-  `AV-<año en la zona de operación>-<n>` se hará en el servicio de alta (Fase 3).
+- **Numeración de averías.** `AV-<año en la zona de operación>-<n>` con la secuencia global de la
+  migración inicial. El sufijo no se reinicia al cambiar de año y admite huecos.
 - **Primer responsable.** La gestión de personas exige un responsable activo, así que una base
   vacía no tendría a nadie con permiso. `POST /people` admite una petición sin actor solo si la
   tabla de personas está vacía y la persona es responsable. Un bloqueo de tabla evita dos altas
@@ -243,12 +304,31 @@ estado efectivo de la máquina.
 - **Nombre y apellidos** se guardan en un único campo `full_name`, como en el esquema inicial.
 - **Email** se guarda en minúsculas. El coste por hora viaja como decimal en texto (`"35.50"`) y la
   interfaz admite coma decimal.
-- **Historial de averías en la ficha de máquina.** La spec lo obtiene de `GET /incidents`, que se
-  implementa en la Fase 3. En la Fase 2 la ficha muestra horas acumuladas y averías sin cerrar.
+- **Historial de averías en la ficha de máquina.** Se obtiene de `GET /incidents?machine_id=…`,
+  con averías de todos los estados, también en máquinas de baja.
+- **Zona de operación en la interfaz.** La spec pide mostrar horas en la zona configurable, que
+  vive en el backend. Se añade `GET /config`, que la devuelve, y la interfaz formatea con ella
+  (con `Europe/Madrid` mientras carga o si falla).
+- **Detección sin zona.** `detected_at` admite un instante con zona o una hora local sin zona,
+  que se interpreta en la zona de operación. La interfaz envía la hora local del formulario.
+- **Detección futura.** Se rechaza, con 2 minutos de margen por desfases entre el reloj del
+  navegador y el del servidor. Dentro de ese margen se guarda la hora del servidor, para que la
+  resolución nunca quede antes que la detección.
+- **Códigos de error de la asignación.** Un técnico que no existe o no es técnico es un dato no
+  válido (`422`, el `404` queda para recursos de la ruta). Uno inactivo es un conflicto de estado
+  (`409`). Reasignar al mismo técnico da `422`.
+- **Quién imputa.** Solo técnicos activos, siempre a su nombre ("cada técnico registra sus propias
+  imputaciones"). Un responsable no imputa.
+- **Orden de comprobación en las acciones.** Primero el actor y su rol (`403`), después que la
+  avería exista (`404`), después el estado (`409`) y por último que el actor sea el técnico
+  asignado (`403`). Así, intentar resolver una avería sin iniciar devuelve el salto de estado.
+- **Página de inicio.** La bandeja de averías pasa a ser la página de inicio, por ser el trabajo
+  diario. Los desplegables de máquinas y técnicos cargan hasta 100 registros (máximo de página),
+  suficiente para la demo.
 
 ## Fases
 
 1. **Base ejecutable** (hecha): monorepo, Compose, configuración, migración inicial y verificación.
 2. **Catálogos** (hecha): API y pantallas de máquinas y personas, filtros y bajas.
-3. **Flujo de averías**: registrar, asignar, iniciar, imputar, resolver y cerrar.
+3. **Flujo de averías** (hecha): registrar, asignar, iniciar, imputar, resolver y cerrar.
 4. **Consulta y entrega**: histórico, totales, datos de demostración y recorrido completo.
