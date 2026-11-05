@@ -3,7 +3,7 @@ COMPOSE := docker compose
 BACKEND := cd backend &&
 FRONTEND := cd frontend &&
 
-.PHONY: help up down logs migrate install \
+.PHONY: help up down logs migrate seed walkthrough install \
 	backend-lint backend-format backend-typecheck backend-test \
 	frontend-lint frontend-typecheck frontend-test frontend-build \
 	check verify
@@ -23,6 +23,10 @@ logs:
 
 migrate:
 	$(COMPOSE) exec backend alembic upgrade head
+
+# Carga idempotente de datos de demostración (se puede repetir sin duplicar).
+seed:
+	$(COMPOSE) exec backend python -m scripts.seed_demo
 
 # --- Dependencias locales ---
 install:
