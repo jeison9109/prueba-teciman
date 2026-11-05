@@ -1,34 +1,28 @@
 # Gestión de mantenimiento correctivo
 
-Prueba técnica de Téciman Digital. El enunciado original está en
-[requerimiento.md](requerimiento.md), el contrato funcional en [spec.md](spec.md) y la guía de
-arquitectura y trabajo en [AGENTS.md](AGENTS.md).
+Prueba técnica de Téciman Digital: una aplicación web para registrar máquinas y personas,
+gestionar cada avería desde su detección hasta su validación, imputar horas de trabajo y
+recuperar cómo se arreglaron averías anteriores.
 
-**Estado: Fase 4 (consulta y entrega).** Las cuatro fases de la spec están hechas: catálogos de
-máquinas y personas, el ciclo completo de averías con imputaciones, el histórico de conocimiento
-(`/incidents/history` y la pantalla *Histórico*), totales de horas por avería, máquina y técnico,
-un script de datos demo explícito e idempotente y un recorrido completo que `make verify` ejecuta
-desde una base vacía.
+El enunciado original está en [requerimiento.md](requerimiento.md), el contrato funcional en
+[spec.md](spec.md) y la guía de arquitectura y trabajo en [AGENTS.md](AGENTS.md).
 
-## Stack
+**Estado: completa.** Las cuatro fases de la spec están hechas: catálogos de máquinas y personas,
+el ciclo completo de averías con imputaciones, el histórico de conocimiento, totales de horas por
+avería, máquina y técnico, un script de datos demo idempotente y un recorrido completo que
+`make verify` ejecuta desde una base vacía.
 
-| Capa | Tecnología |
-| --- | --- |
-| Frontend | React 19, React Router 7, Vite 8, TypeScript estricto, ESLint (typescript-eslint), Vitest |
-| Backend | Python 3.12+, FastAPI, Pydantic, SQLAlchemy 2, Alembic, uv |
-| Base de datos | PostgreSQL 16 |
-| Entorno local | Docker Compose |
+**Contenido**
 
-```text
-backend/    API FastAPI, modelos, migraciones Alembic y pruebas (pytest)
-frontend/   Aplicación React + Vite
-backend/scripts/
-  seed_demo.py    carga idempotente de datos de demostración (make seed)
-  walkthrough.py  recorrido completo de la demo contra la API (make walkthrough)
-scripts/    verify-stack.sh: verificación de arranque, carga demo y recorrido desde una base vacía
-```
+1. [Instalación y arranque](#instalación-y-arranque)
+2. [Stack elegido y por qué](#stack-elegido-y-por-qué)
+3. [Modelo de datos](#modelo-de-datos)
+4. [Decisiones de diseño y supuestos](#decisiones-de-diseño-y-supuestos)
+5. [Qué mejoraría con más tiempo](#qué-mejoraría-con-más-tiempo)
+6. [Referencia técnica](#referencia-técnica): migraciones, verificación, pruebas,
+   configuración y API
 
-## Arranque desde cero
+## Instalación y arranque
 
 Requisitos: Docker con Docker Compose v2 y `make` (opcional: cada objetivo del `Makefile` es una
 orden corta que se puede ejecutar a mano).
@@ -86,7 +80,299 @@ Si ya usas alguno de esos puertos, cambia `POSTGRES_PORT`, `BACKEND_PORT` o `FRO
 Para parar: `make down` (conserva los datos). `docker compose down -v` borra también el volumen
 de la base de datos.
 
-## Migraciones
+## Stack elegido y por qué
+
+| Capa | Tecnología |
+| --- | --- |
+| Frontend | React 19, React Router 7, Vite 8, TypeScript estricto, ESLint (typescript-eslint), Vitest + Testing Library |
+| Backend | Python 3.12+, FastAPI, Pydantic, SQLAlchemy 2, Alembic, uv, Ruff, mypy estricto, pytest |
+| Base de datos | PostgreSQL 16 |
+| Entorno local | Docker Compose y `Makefile` |
+
+- **FastAPI + Pydantic.** El backend tenía que ser Python. FastAPI valida las peticiones con
+  modelos Pydantic tipados, genera la documentación OpenAPI en `/docs` sin trabajo extra (útil
+  para revisar la API sin la interfaz) y es lo bastante ligero para un servicio de este tamaño.
+  Django habría aportado un panel de administración que aquí no hace falta, a cambio de más
+  estructura.
+- **PostgreSQL.** Las reglas importantes se aplican también en la base: `CHECK` de coherencia de
+  estado, expresiones regulares para el código y el email, claves foráneas `RESTRICT` y una
+  secuencia para la numeración. La concurrencia se resuelve con bloqueos de fila
+  (`SELECT … FOR UPDATE/SHARE`) y bloqueos consultivos, que SQLite no tiene. Las pruebas corren
+  contra el mismo motor que usa la aplicación, así que lo que se prueba es lo que se ejecuta.
+- **SQLAlchemy 2 + Alembic.** El enunciado pide crear el esquema con migraciones. SQLAlchemy 2
+  da modelos tipados que mypy comprueba y deja escribir en SQL los totales y el tiempo de parada.
+  Una prueba compara modelos y migración para detectar deriva.
+- **React + Vite + TypeScript.** Una SPA permite hacer todas las operaciones desde la interfaz,
+  con acciones que cambian según la persona activa y el estado de la avería. TypeScript estricto
+  ayuda a mantener el contrato con la API, Vite arranca en segundos y su proxy de `/api` evita
+  configurar CORS en desarrollo. React Router guarda los filtros en la URL, de modo que una
+  búsqueda se puede recargar o compartir.
+- **uv, Ruff y mypy.** Instalación reproducible con lockfile, y lint y tipos rápidos para que
+  `make check` se ejecute a menudo.
+- **Docker Compose.** El enunciado pide arranque sencillo: `make up` levanta base de datos,
+  backend (con migraciones) y frontend sin instalar nada más que Docker.
+
+```text
+backend/    API FastAPI, modelos, migraciones Alembic y pruebas (pytest)
+frontend/   Aplicación React + Vite
+backend/scripts/
+  seed_demo.py    carga idempotente de datos de demostración (make seed)
+  walkthrough.py  recorrido completo de la demo contra la API (make walkthrough)
+scripts/    verify-stack.sh: verificación de arranque, carga demo y recorrido desde una base vacía
+```
+
+## Modelo de datos
+
+Generado a partir de los modelos de `backend/app/models/` y de la migración
+`backend/migrations/versions/20261105_0001_esquema_inicial.py`. GitHub dibuja el diagrama
+directamente desde este bloque Mermaid; para visores sin Mermaid hay una copia en imagen en
+[docs/modelo-de-datos.png](docs/modelo-de-datos.png).
+
+```mermaid
+erDiagram
+    MACHINES ||--o{ INCIDENTS : "sufre (machine_id)"
+    PEOPLE ||--o{ INCIDENTS : "reporta (reported_by_id)"
+    PEOPLE |o--o{ INCIDENTS : "tiene asignada (assigned_technician_id)"
+    PEOPLE |o--o{ INCIDENTS : "valida el cierre (closed_by_id)"
+    INCIDENTS ||--o{ WORK_LOGS : "acumula"
+    PEOPLE ||--o{ WORK_LOGS : "imputa (technician_id)"
+
+    MACHINES {
+        int id PK
+        varchar code UK "40, mayúsculas sin espacios en los extremos"
+        varchar name "120"
+        varchar type "80, texto libre"
+        varchar manufacturer "nullable"
+        varchar model "nullable"
+        varchar serial_number "nullable"
+        varchar location "120, texto libre"
+        date commissioning_date "nullable"
+        varchar criticality "alta | media | baja"
+        varchar admin_status "operativa | fuera_de_servicio | de_baja"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    PEOPLE {
+        int id PK
+        varchar full_name "160"
+        varchar role "tecnico | operario | responsable"
+        varchar specialty "nullable: mecanica, electrica, electronica, hidraulica, neumatica"
+        varchar email "nullable, formato validado"
+        varchar phone "nullable"
+        numeric hourly_cost "nullable, 10.2 EUR, no negativo"
+        boolean active "baja lógica"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    INCIDENTS {
+        int id PK
+        varchar number UK "AV-AAAA-NNNN"
+        int machine_id FK
+        int reported_by_id FK
+        timestamptz detected_at
+        varchar title "160"
+        text symptom
+        varchar failure_type "mecanico ... software | otro"
+        varchar priority "urgente | alta | media | baja"
+        boolean machine_stopped
+        int assigned_technician_id FK "nullable, solo null en abierta"
+        varchar status "abierta | asignada | en_curso | resuelta | cerrada"
+        text root_cause "obligatoria al resolver"
+        text solution "obligatoria al resolver"
+        text replaced_parts "nullable"
+        varchar solution_type "nullable: definitiva, provisional, sustitucion, ajuste"
+        text preventive_recommendation "nullable"
+        timestamptz resolved_at "nullable"
+        int closed_by_id FK "nullable, responsable validador"
+        timestamptz closed_at "nullable"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    WORK_LOGS {
+        int id PK
+        int incident_id FK
+        int technician_id FK
+        date work_date
+        int minutes "mayor que 0 y múltiplo de 15"
+        text description
+        timestamptz created_at
+    }
+```
+
+Qué no aparece en las tablas, a propósito:
+
+- **El estado «en avería» de la máquina.** Se guarda solo el estado administrativo
+  (`admin_status`). La API calcula el estado efectivo: `en_averia` mientras la máquina tenga
+  alguna avería abierta, asignada o en curso con `machine_stopped`.
+- **Totales de horas y tiempo de parada.** Se calculan en SQL al consultar: la suma de
+  `work_logs.minutes` por avería, máquina o técnico, y las horas entre `detected_at` y
+  `resolved_at` cuando hubo parada.
+- **El número de avería** sale de la secuencia `incident_number_seq` y del año en que se registra,
+  en la zona de operación.
+
+`PEOPLE` tiene cuatro relaciones porque una avería se relaciona con tres personas distintas
+(reportante, técnico asignado y responsable que valida) y cada imputación con su técnico. Las
+enumeraciones se guardan como `VARCHAR` con `CHECK` y con los valores estables de la API
+(`en_curso`, `fuera_de_servicio`…); las etiquetas en español viven en la interfaz.
+
+### Restricciones en la base de datos
+
+- Claves foráneas `RESTRICT`: no se puede borrar físicamente una máquina o persona con historial.
+- Código de máquina único y guardado en mayúsculas sin espacios en los extremos. Número de avería
+  único con formato `AV-AAAA-NNNN` (cuatro dígitos como mínimo).
+- Textos obligatorios sin cadenas vacías ni solo espacios. Email con formato básico y coste por
+  hora `NUMERIC(10,2)` no negativo.
+- Coherencia de estado en la avería: solo `abierta` carece de técnico asignado; `resuelta` y
+  `cerrada` exigen hora de resolución, causa raíz y solución con contenido; solo `cerrada` tiene
+  validador y hora de cierre; resolución posterior a la detección y cierre posterior a la
+  resolución.
+- Imputaciones en minutos enteros, positivos y múltiplos de 15.
+- Índices en los campos que filtran listados: estado, prioridad, tipo y ubicación de máquina,
+  rol y vigencia de persona, `(machine_id, status)` y `resolved_at` para el histórico.
+
+Las reglas que dependen de otras filas o del momento actual se aplican en los servicios, dentro
+de la transacción y con bloqueos de fila: rol técnico del asignado, persona activa, imputación no
+anterior al día de detección, detección no futura y estado efectivo de la máquina. Todo el
+esquema está en la migración `0001`; las fases 3 y 4 no necesitaron cambios.
+
+## Decisiones de diseño y supuestos
+
+El enunciado deja abiertos varios puntos. Estas son las decisiones tomadas y su motivo; las que
+añaden o cambian algo respecto al modelo orientativo del enunciado están justificadas aquí, como
+pide.
+
+### Datos guardados y calculados
+
+- **Estado de la máquina.** Se guarda el estado administrativo (`operativa`,
+  `fuera_de_servicio`, `de_baja`). `en_averia` no se guarda: la API lo deriva de las averías
+  abiertas, asignadas o en curso que causan parada, como indica la spec. Así, al resolver la
+  última parada se recupera la condición previa sin tener que recordarla aparte.
+- **Tipo y ubicación de máquina** son texto obligatorio y no una lista cerrada. El enunciado da
+  ejemplos (prensa, CNC…), pero la spec no fija valores y los necesita para filtrar.
+- **Criticidad** es obligatoria. La spec la define como lista cerrada sin valor por defecto.
+- **Horas imputadas** se guardan como minutos enteros (spec). La API recibe horas decimales como
+  texto en tramos de 0,25 h. Admite punto o coma decimal y rechaza números JSON. Se fija un máximo
+  de 24 h por imputación como límite coherente, que la spec no concreta.
+- **Tiempo de parada** no se guarda: se calcula en el backend a partir de detección y resolución.
+- **Numeración de averías.** `AV-<año en la zona de operación>-<n>` con la secuencia global de la
+  migración inicial. El sufijo no se reinicia al cambiar de año y admite huecos.
+- **Nombre y apellidos** se guardan en un único campo `full_name`, como en el esquema inicial.
+- **Email** se guarda en minúsculas. El coste por hora viaja como decimal en texto (`"35.50"`) y la
+  interfaz admite coma decimal.
+
+### Permisos y ciclo de vida
+
+- **Solo el responsable gestiona catálogos.** Altas, ediciones y bajas de máquinas y personas
+  exigen un responsable activo, como fija la spec para este MVP. Cualquier persona activa puede
+  registrar una avería y las lecturas no necesitan actor, para que el evaluador pueda consultar
+  todo sin elegir persona.
+- **Identidad simulada.** No hay autenticación: el selector «Persona activa» envía
+  `X-Actor-Id` y la API valida existencia, vigencia y rol en cada escritura (ver
+  [Configuración](#configuración)).
+- **Primer responsable.** La gestión de personas exige un responsable activo, así que una base
+  vacía no tendría a nadie con permiso. `POST /people` admite una petición sin actor solo si la
+  tabla de personas está vacía y la persona es responsable. Un bloqueo de tabla evita dos altas
+  iniciales simultáneas. En cuanto existe una persona, la excepción deja de aplicarse.
+- **Bajas.** `DELETE` hace la baja lógica. Una persona inactiva se puede reactivar con
+  `PATCH {"active": true}`. Una máquina de baja queda solo para consulta (`409` al editarla).
+  La condición administrativa se elige entre operativa y fuera de servicio; la baja solo por
+  `DELETE`.
+- **Quién imputa.** Solo técnicos activos, siempre a su nombre ("cada técnico registra sus propias
+  imputaciones"). Un responsable no imputa.
+- **Detección sin zona.** `detected_at` admite un instante con zona o una hora local sin zona,
+  que se interpreta en la zona de operación. La interfaz envía la hora local del formulario.
+- **Detección futura.** Se rechaza, con 2 minutos de margen por desfases entre el reloj del
+  navegador y el del servidor. Dentro de ese margen se guarda la hora del servidor, para que la
+  resolución nunca quede antes que la detección.
+- **Códigos de error de la asignación.** Un técnico que no existe o no es técnico es un dato no
+  válido (`422`, el `404` queda para recursos de la ruta). Uno inactivo es un conflicto de estado
+  (`409`). Reasignar al mismo técnico da `422`.
+- **Orden de comprobación en las acciones.** Primero el actor y su rol (`403`), después que la
+  avería exista (`404`), después el estado (`409`) y por último que el actor sea el técnico
+  asignado (`403`). Así, intentar resolver una avería sin iniciar devuelve el salto de estado.
+
+### Concurrencia
+
+- **Bloqueos en orden fijo.** Cada escritura es una transacción. Las reglas que dependen de
+  otras filas (último responsable activo, técnico con averías a su cargo, máquina de baja, dos
+  asignaciones a la vez) se comprueban tras bloquear las filas implicadas siempre en el mismo
+  orden: personas por ID ascendente, después máquinas y después averías. Así dos operaciones
+  concurrentes no se bloquean mutuamente y la segunda ve el resultado de la primera. El detalle
+  está en [API → Concurrencia](#api) y en `backend/app/services/locking.py`.
+
+### Interfaz
+
+- **Página de inicio.** La bandeja de averías pasa a ser la página de inicio, por ser el trabajo
+  diario. Los desplegables de máquinas y técnicos cargan hasta 100 registros (máximo de página),
+  suficiente para la demo.
+- **Zona de operación en la interfaz.** La spec pide mostrar horas en la zona configurable, que
+  vive en el backend. Se añade `GET /config`, que la devuelve, y la interfaz formatea con ella
+  (con `Europe/Madrid` mientras carga o si falla).
+- **Historial de averías en la ficha de máquina.** Se obtiene de `GET /incidents?machine_id=…`,
+  con averías de todos los estados, también en máquinas de baja.
+- **Histórico.** Incluye máquinas de baja (la spec pide consultar sus registros desde el
+  histórico). En la interfaz, los textos se aplican al pulsar *Buscar* para no consultar en cada
+  pulsación, y la máquina al elegirla. Los filtros viven en la URL.
+- **Sin técnicos activos.** Al asignar o reasignar sin técnicos disponibles, el selector explica
+  el motivo y enlaza a dar de alta un técnico o a reactivarlo en Personas.
+
+### Datos de demostración
+
+- **Datos demo.** Se cargan con una orden aparte (`make seed`), nunca al arrancar. El script
+  inserta con SQLAlchemy y no a través de la API porque los servicios fijan la resolución y el
+  cierre con la hora actual, y la demo necesita historia pasada. Las fechas son relativas al
+  momento de la carga (las de días anteriores, a las 08:15 locales) para cumplir las reglas de
+  detección e imputación. Las restricciones de la base validan la coherencia y una prueba
+  comprueba que los datos admiten el flujo por API. Es idempotente por clave natural: máquinas por
+  código, personas por email y averías por máquina y título. Lo existente no se modifica, así que
+  convive con datos creados a mano. Va en una transacción con bloqueo consultivo. Numera con la
+  misma secuencia y el año de la detección.
+
+## Qué mejoraría con más tiempo
+
+Por orden aproximado de valor para un uso real:
+
+1. **Autenticación real.** Sustituir el selector de persona y la cabecera `X-Actor-Id` por inicio
+   de sesión (por ejemplo OIDC con el directorio de la empresa) y que la API tome el actor del
+   token. Las reglas de permisos ya viven en el backend, así que el cambio se concentra en cómo
+   se obtiene el actor.
+2. **Coste por avería y por máquina.** El coste por hora de cada persona ya se guarda, pero no se
+   usa. Para calcularlo bien habría que congelar la tarifa en cada imputación, de modo que un
+   cambio de tarifa no altere el coste de reparaciones pasadas.
+3. **Editar y anular imputaciones.** Hoy una imputación es definitiva. Permitir que su autor la
+   corrija mientras la avería esté en curso, y que un responsable la anule después, dejando
+   rastro de quién cambió qué.
+4. **Reabrir averías e historial de transiciones.** Si el fallo reaparece tras resolver o
+   cerrar, ahora hay que registrar una avería nueva. Una tabla de eventos (cambio de estado,
+   asignación, reasignación, con actor y hora) permitiría reabrir con trazabilidad y mostrar una
+   línea de tiempo en el detalle. Ahora las reasignaciones no dejan historial.
+5. **Búsqueda de texto completo.** Pasar de `ILIKE` a `tsvector` con diccionario español y
+   `unaccent`, para que «junta torica» encuentre «junta tórica» y los resultados se ordenen por
+   relevancia.
+6. **Tipo y ubicación como catálogos.** Son texto libre para no inventar una lista cerrada que la
+   spec no fija, pero eso permite variantes como «Prensa» y «Prensas». Con datos reales, pasarían
+   a tablas gestionadas por el responsable.
+7. **Indicadores de mantenimiento.** MTTR, MTBF y horas de parada por máquina y periodo, con
+   exportación a CSV.
+8. **Selectores con búsqueda.** Los desplegables de máquinas y técnicos cargan hasta 100
+   registros, suficiente para la demo; con más datos harían falta autocompletado y búsqueda en
+   servidor.
+9. **CI y pruebas de extremo a extremo.** Ejecutar `make check` y `make verify` en GitHub Actions
+   en cada PR, y añadir pruebas de navegador (Playwright) para el recorrido de la demo.
+10. **Imagen de producción.** El frontend corre con el servidor de desarrollo de Vite. Para
+    desplegar haría falta un build estático servido por nginx, configuración por entorno y
+    copias de seguridad de la base.
+
+Fuera del alcance de la spec y candidatos a una fase posterior: notificaciones al técnico
+asignado, adjuntos (fotos de la avería) y mantenimiento preventivo programado a partir de las
+recomendaciones registradas.
+
+## Referencia técnica
+
+### Migraciones
 
 El backend aplica las migraciones pendientes cada vez que arranca. Para aplicarlas a mano:
 
@@ -109,7 +395,7 @@ Para crear una revisión nueva: `uv run alembic revision --autogenerate -m "desc
 el archivo generado en `backend/migrations/versions/` (Alembic no detecta secuencias ni algunos
 CHECK) y probarla desde una base vacía.
 
-## Verificar los servicios
+### Verificar los servicios
 
 ```bash
 curl http://localhost:8000/api/v1/health
@@ -142,7 +428,7 @@ asignado resuelve (la máquina vuelve a operativa), un responsable cierra, aver�
 2 h, cada técnico sube lo que imputó y el histórico la encuentra por máquina, síntoma, causa y
 texto parcial de la solución.
 
-## Lint, tipos, pruebas y build
+### Lint, tipos, pruebas y build
 
 Instalación local de dependencias: `make install` (`uv sync` en `backend/` y `npm ci` en
 `frontend/`). Requiere [uv](https://docs.astral.sh/uv/) y Node 22.12 o superior.
@@ -210,7 +496,7 @@ Qué cubren ahora:
 Algunas pruebas de máquinas y personas siguen insertando averías con SQL para preparar estados
 concretos (`tests/factories.py`).
 
-## Configuración
+### Configuración
 
 Todas las variables están en [.env.example](.env.example), sin secretos reales.
 
@@ -228,7 +514,7 @@ La elegida se recuerda en el navegador (`localStorage`) y el cliente HTTP la env
 tenga el rol necesario. Es una simulación local sin autenticación real. Las lecturas no necesitan
 actor. Con «Solo consulta» la interfaz oculta las acciones de gestión.
 
-## API
+### API
 
 Documentación interactiva en http://localhost:8000/docs. Prefijo `/api/v1`.
 
@@ -314,92 +600,6 @@ concurrente espera y después ve la asignación), la máquina con `FOR SHARE` al
 puede dar de baja a la vez) y la avería con `FOR UPDATE`, que serializa todas las escrituras sobre
 ella. Estado, actor y técnico asignado se comprueban con los bloqueos ya tomados.
 
-## Esquema inicial
-
-La migración `0001` crea las tablas `machines`, `people`, `incidents` y `work_logs` y la
-secuencia `incident_number_seq`. Las enumeraciones se guardan como `VARCHAR` con `CHECK`, con los
-valores estables de la API (`en_curso`, `fuera_de_servicio`…). Las etiquetas en español viven en
-la interfaz.
-
-Restricciones en la base de datos:
-
-- Claves foráneas `RESTRICT`: no se puede borrar físicamente una máquina o persona con historial.
-- Código de máquina único y guardado en mayúsculas sin espacios en los extremos. Número de avería
-  único con formato `AV-AAAA-NNNN` (cuatro dígitos como mínimo).
-- Textos obligatorios sin cadenas vacías ni solo espacios. Email con formato básico y coste por
-  hora `NUMERIC(10,2)` no negativo.
-- Coherencia de estado en la avería: solo `abierta` carece de técnico asignado; `resuelta` y
-  `cerrada` exigen hora de resolución, causa raíz y solución con contenido; solo `cerrada` tiene
-  validador y hora de cierre; resolución posterior a la detección y cierre posterior a la
-  resolución.
-- Imputaciones en minutos enteros, positivos y múltiplos de 15.
-
-Las reglas que dependen de otras filas o del momento actual se aplican en los servicios, dentro
-de la transacción y con bloqueos de fila: rol técnico del asignado, persona activa, imputación no
-anterior al día de detección, detección no futura y estado efectivo de la máquina. Las fases 3 y
-4 no necesitan cambios de esquema, así que no hay migración nueva.
-
-## Decisiones respecto al enunciado
-
-- **Estado de la máquina.** Se guarda el estado administrativo (`operativa`,
-  `fuera_de_servicio`, `de_baja`). `en_averia` no se guarda: la API lo deriva de las averías
-  abiertas, asignadas o en curso que causan parada, como indica la spec. Así, al resolver la
-  última parada se recupera la condición previa sin tener que recordarla aparte.
-- **Tipo y ubicación de máquina** son texto obligatorio y no una lista cerrada. El enunciado da
-  ejemplos (prensa, CNC…), pero la spec no fija valores y los necesita para filtrar.
-- **Criticidad** es obligatoria. La spec la define como lista cerrada sin valor por defecto.
-- **Horas imputadas** se guardan como minutos enteros (spec). La API recibe horas decimales como
-  texto en tramos de 0,25 h. Admite punto o coma decimal y rechaza números JSON. Se fija un máximo
-  de 24 h por imputación como límite coherente, que la spec no concreta.
-- **Tiempo de parada** no se guarda: se calcula en el backend a partir de detección y resolución.
-- **Numeración de averías.** `AV-<año en la zona de operación>-<n>` con la secuencia global de la
-  migración inicial. El sufijo no se reinicia al cambiar de año y admite huecos.
-- **Primer responsable.** La gestión de personas exige un responsable activo, así que una base
-  vacía no tendría a nadie con permiso. `POST /people` admite una petición sin actor solo si la
-  tabla de personas está vacía y la persona es responsable. Un bloqueo de tabla evita dos altas
-  iniciales simultáneas. En cuanto existe una persona, la excepción deja de aplicarse.
-- **Bajas.** `DELETE` hace la baja lógica. Una persona inactiva se puede reactivar con
-  `PATCH {"active": true}`. Una máquina de baja queda solo para consulta (`409` al editarla).
-  La condición administrativa se elige entre operativa y fuera de servicio; la baja solo por
-  `DELETE`.
-- **Nombre y apellidos** se guardan en un único campo `full_name`, como en el esquema inicial.
-- **Email** se guarda en minúsculas. El coste por hora viaja como decimal en texto (`"35.50"`) y la
-  interfaz admite coma decimal.
-- **Historial de averías en la ficha de máquina.** Se obtiene de `GET /incidents?machine_id=…`,
-  con averías de todos los estados, también en máquinas de baja.
-- **Zona de operación en la interfaz.** La spec pide mostrar horas en la zona configurable, que
-  vive en el backend. Se añade `GET /config`, que la devuelve, y la interfaz formatea con ella
-  (con `Europe/Madrid` mientras carga o si falla).
-- **Detección sin zona.** `detected_at` admite un instante con zona o una hora local sin zona,
-  que se interpreta en la zona de operación. La interfaz envía la hora local del formulario.
-- **Detección futura.** Se rechaza, con 2 minutos de margen por desfases entre el reloj del
-  navegador y el del servidor. Dentro de ese margen se guarda la hora del servidor, para que la
-  resolución nunca quede antes que la detección.
-- **Códigos de error de la asignación.** Un técnico que no existe o no es técnico es un dato no
-  válido (`422`, el `404` queda para recursos de la ruta). Uno inactivo es un conflicto de estado
-  (`409`). Reasignar al mismo técnico da `422`.
-- **Quién imputa.** Solo técnicos activos, siempre a su nombre ("cada técnico registra sus propias
-  imputaciones"). Un responsable no imputa.
-- **Orden de comprobación en las acciones.** Primero el actor y su rol (`403`), después que la
-  avería exista (`404`), después el estado (`409`) y por último que el actor sea el técnico
-  asignado (`403`). Así, intentar resolver una avería sin iniciar devuelve el salto de estado.
-- **Página de inicio.** La bandeja de averías pasa a ser la página de inicio, por ser el trabajo
-  diario. Los desplegables de máquinas y técnicos cargan hasta 100 registros (máximo de página),
-  suficiente para la demo.
-- **Datos demo.** Se cargan con una orden aparte (`make seed`), nunca al arrancar. El script
-  inserta con SQLAlchemy y no a través de la API porque los servicios fijan la resolución y el
-  cierre con la hora actual, y la demo necesita historia pasada. Las fechas son relativas al
-  momento de la carga (las de días anteriores, a las 08:15 locales) para cumplir las reglas de
-  detección e imputación. Las restricciones de la base validan la coherencia y una prueba
-  comprueba que los datos admiten el flujo por API. Es idempotente por clave natural: máquinas por
-  código, personas por email y averías por máquina y título. Lo existente no se modifica, así que
-  convive con datos creados a mano. Va en una transacción con bloqueo consultivo. Numera con la
-  misma secuencia y el año de la detección.
-- **Histórico.** Incluye máquinas de baja (la spec pide consultar sus registros desde el
-  histórico). En la interfaz, los textos se aplican al pulsar *Buscar* para no consultar en cada
-  pulsación, y la máquina al elegirla. Los filtros viven en la URL.
-- **Sin técnicos activos.** Al asignar o reasignar sin técnicos disponibles, el selector explica
-  el motivo y enlaza a dar de alta un técnico o a reactivarlo en Personas.
 ## Fases
 
 1. **Base ejecutable** (hecha): monorepo, Compose, configuración, migración inicial y verificación.
