@@ -1,4 +1,7 @@
 import { NavLink, Navigate, Route, Routes } from 'react-router'
+import { IncidentCreatePage } from '../features/incidents/IncidentCreatePage'
+import { IncidentDetailPage } from '../features/incidents/IncidentDetailPage'
+import { IncidentListPage } from '../features/incidents/IncidentListPage'
 import { MachineCreatePage } from '../features/machines/MachineCreatePage'
 import { MachineDetailPage } from '../features/machines/MachineDetailPage'
 import { MachineListPage } from '../features/machines/MachineListPage'
@@ -8,6 +11,7 @@ import { PersonDetailPage } from '../features/people/PersonDetailPage'
 import { ErrorMessage, Loading } from '../shared/components/AsyncStatus'
 import { ActorProvider, useActor } from './ActorContext'
 import { ActorSelector } from './ActorSelector'
+import { SettingsProvider } from './SettingsContext'
 import { SetupPage } from './SetupPage'
 import { SystemStatusPage } from './SystemStatusPage'
 
@@ -25,7 +29,10 @@ function Content() {
   if (state.data.totalPeople === 0) return <SetupPage />
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/maquinas" replace />} />
+      <Route path="/" element={<Navigate to="/averias" replace />} />
+      <Route path="/averias" element={<IncidentListPage />} />
+      <Route path="/averias/nueva" element={<IncidentCreatePage />} />
+      <Route path="/averias/:id" element={<IncidentDetailPage />} />
       <Route path="/maquinas" element={<MachineListPage />} />
       <Route path="/maquinas/nueva" element={<MachineCreatePage />} />
       <Route path="/maquinas/:id" element={<MachineDetailPage />} />
@@ -44,8 +51,8 @@ function ModeNotice() {
   return (
     <p className="mode-notice" role="note">
       {actor
-        ? 'Tu rol solo permite consultar máquinas y personas.'
-        : 'Modo consulta. Elige una persona activa responsable para hacer cambios.'}
+        ? 'Tu rol permite registrar averías y, si eres técnico, trabajar las tuyas. Máquinas y personas solo se consultan.'
+        : 'Modo consulta. Elige una persona activa para registrar o gestionar averías.'}
     </p>
   )
 }
@@ -53,20 +60,23 @@ function ModeNotice() {
 /** Composición global. El router lo aporta `main.tsx` (o la prueba). */
 export function App() {
   return (
-    <ActorProvider>
-      <header className="topbar">
-        <strong className="brand">Mantenimiento correctivo</strong>
-        <nav aria-label="Principal">
-          <NavLink to="/maquinas">Máquinas</NavLink>
-          <NavLink to="/personas">Personas</NavLink>
-          <NavLink to="/estado">Estado</NavLink>
-        </nav>
-        <ActorSelector />
-      </header>
-      <main className="layout">
-        <ModeNotice />
-        <Content />
-      </main>
-    </ActorProvider>
+    <SettingsProvider>
+      <ActorProvider>
+        <header className="topbar">
+          <strong className="brand">Mantenimiento correctivo</strong>
+          <nav aria-label="Principal">
+            <NavLink to="/averias">Averías</NavLink>
+            <NavLink to="/maquinas">Máquinas</NavLink>
+            <NavLink to="/personas">Personas</NavLink>
+            <NavLink to="/estado">Estado</NavLink>
+          </nav>
+          <ActorSelector />
+        </header>
+        <main className="layout">
+          <ModeNotice />
+          <Content />
+        </main>
+      </ActorProvider>
+    </SettingsProvider>
   )
 }

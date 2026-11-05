@@ -7,6 +7,11 @@ Orden de adquisición común a todos los servicios, para evitar interbloqueos:
 2. Máquinas.
 3. Averías.
 
+Las escrituras de averías bloquean primero al actor y a los técnicos implicados (FOR SHARE,
+para que una baja o un cambio de rol concurrente espere), después la máquina si hace falta
+(FOR SHARE al registrar, para que no se dé de baja a la vez) y por último la avería
+(FOR UPDATE), y comprueban estado y actor ya con los bloqueos adquiridos.
+
 Tras adquirir los bloqueos, los servicios vuelven a evaluar sus precondiciones con
 consultas nuevas: en READ COMMITTED cada sentencia ve lo confirmado tras la espera.
 """
@@ -17,7 +22,7 @@ from sqlalchemy import ColumnElement, and_, or_, select
 from sqlalchemy.orm import Session
 
 from app.errors import ForbiddenError
-from app.models import Machine, Person
+from app.models import Incident, Machine, Person
 from app.models.enums import Role
 
 ROLE_LABELS = {
@@ -77,10 +82,22 @@ def require_actor(session: Session, actor_id: int | None, roles: Collection[Role
     return check_actor(actor_id, actor, roles)
 
 
-def lock_machine(session: Session, machine_id: int) -> Machine | None:
+def lock_machine(session: Session, machine_id: int, *, read: bool = False) -> Machine | None:
+    """Bloquea la máquina. `read=True` (FOR SHARE) basta para impedir su baja concurrente."""
     statement = (
         select(Machine)
         .where(Machine.id == machine_id)
+        .with_for_update(read=read)
+        .execution_options(populate_existing=True)
+    )
+    return session.scalars(statement).one_or_none()
+
+
+def lock_incident(session: Session, incident_id: int) -> Incident | None:
+    """Bloquea la avería en exclusiva: serializa todas las escrituras sobre ella."""
+    statement = (
+        select(Incident)
+        .where(Incident.id == incident_id)
         .with_for_update()
         .execution_options(populate_existing=True)
     )

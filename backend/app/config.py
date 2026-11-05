@@ -34,6 +34,10 @@ class Settings(BaseSettings):
             raise ValueError(f"Zona horaria desconocida: {value}") from error
         return value
 
+    @property
+    def operation_zone(self) -> ZoneInfo:
+        return ZoneInfo(self.operation_timezone)
+
 
 @lru_cache
 def get_settings() -> Settings:

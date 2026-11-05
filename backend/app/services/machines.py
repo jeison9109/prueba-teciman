@@ -4,7 +4,7 @@ from typing import Any
 
 from sqlalchemy import ColumnElement, String, case, exists, func, literal, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from app.errors import ConflictError, FieldError, NotFoundError
 from app.models import Incident, Machine, WorkLog
@@ -24,10 +24,12 @@ def effective_status() -> ColumnElement[str]:
     La baja manda. Si no, cualquier avería activa con parada fuerza `en_averia`. En otro
     caso se muestra la condición administrativa guardada (operativa o fuera de servicio).
     """
+    # Alias propio para que no se correlacione con una consulta exterior sobre averías.
+    other = aliased(Incident)
     stopped = exists().where(
-        Incident.machine_id == Machine.id,
-        Incident.machine_stopped.is_(True),
-        Incident.status.in_(STOPPING_STATES),
+        other.machine_id == Machine.id,
+        other.machine_stopped.is_(True),
+        other.status.in_(STOPPING_STATES),
     )
     return case(
         (Machine.admin_status == MachineAdminStatus.DE_BAJA, literal(MachineStatus.DE_BAJA.value)),

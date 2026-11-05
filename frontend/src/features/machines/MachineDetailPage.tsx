@@ -9,6 +9,7 @@ import { formatDate, formatHours, orDash } from '../../shared/utils/format'
 import { getMachine, retireMachine, updateMachine } from './api'
 import { ADMIN_STATUS_LABELS, CRITICALITY_LABELS } from './labels'
 import { MachineForm } from './MachineForm'
+import { MachineIncidentHistory } from './MachineIncidentHistory'
 import { MachineStatusBadge } from './MachineStatusBadge'
 
 export function MachineDetailPage() {
@@ -129,8 +130,7 @@ export function MachineDetailPage() {
             <p className="muted">Solo se puede dar de baja cuando todas sus averías estén cerradas.</p>
           )}
           {retired && <p className="muted">Máquina de baja: se conserva para consulta.</p>}
-          <h2>Historial de averías</h2>
-          <p className="muted">El listado de averías de la máquina se añade con la Fase 3.</p>
+          <MachineIncidentHistory machine={machine} />
         </>
       )}
     </section>
