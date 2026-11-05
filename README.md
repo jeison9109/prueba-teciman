@@ -4,15 +4,16 @@ Prueba técnica de Téciman Digital. El enunciado original está en
 [requerimiento.md](requerimiento.md), el contrato funcional en [spec.md](spec.md) y la guía de
 arquitectura y trabajo en [AGENTS.md](AGENTS.md).
 
-**Estado: Fase 1 (base ejecutable).** Hay infraestructura local, esquema inicial de base de datos,
-endpoint de salud y una página que muestra el estado del sistema. El CRUD de máquinas y personas,
-el flujo de averías, el histórico y los datos de demostración llegan en las fases 2 a 4.
+**Estado: Fase 2 (catálogos).** Además de la base ejecutable, hay API y pantallas de máquinas y
+personas con filtros, fichas, edición y bajas lógicas, y un selector de persona activa que simula
+la identidad. El flujo de averías, el histórico y los datos de demostración llegan en las fases 3
+y 4.
 
 ## Stack
 
 | Capa | Tecnología |
 | --- | --- |
-| Frontend | React 19, Vite 8, TypeScript estricto, ESLint (typescript-eslint), Vitest |
+| Frontend | React 19, React Router 7, Vite 8, TypeScript estricto, ESLint (typescript-eslint), Vitest |
 | Backend | Python 3.12+, FastAPI, Pydantic, SQLAlchemy 2, Alembic, uv |
 | Base de datos | PostgreSQL 16 |
 | Entorno local | Docker Compose |
@@ -40,6 +41,10 @@ Compose levanta tres servicios:
 | `db` | `localhost:5432` | PostgreSQL con volumen persistente `db-data` |
 | `backend` | http://localhost:8000 | Aplica `alembic upgrade head` al arrancar. Documentación OpenAPI en `/docs` |
 | `frontend` | http://localhost:5173 | Vite en modo desarrollo. Redirige `/api` al backend |
+
+**Primer uso.** Con la base vacía, la aplicación pide crear el primer responsable y lo deja como
+persona activa. Desde ahí se dan de alta máquinas y el resto de personas. Los datos de
+demostración llegarán con un script explícito en la Fase 4.
 
 Si ya usas alguno de esos puertos, cambia `POSTGRES_PORT`, `BACKEND_PORT` o `FRONTEND_PORT` en
 `.env`.
@@ -114,10 +119,21 @@ o, si no existe, a `DATABASE_URL`. Esa base solo se usa para conectarse: cada ej
 temporales `mantenimiento_test_<id>`, aplica la migración en ellas y las elimina al terminar. Con
 `make up` en marcha y el `.env` de ejemplo funcionan sin más configuración.
 
-Qué cubren ahora: migración desde base vacía, vuelta atrás y de nuevo arriba; que los modelos y la
-migración coinciden (sin deriva de autogenerate); endpoint de salud con y sin migraciones; lectura
-de configuración; y las restricciones SQL del esquema (unicidad, formatos, estados y campos
-obligatorios para resolver y cerrar, tramos de 0,25 h y claves foráneas).
+Qué cubren ahora:
+
+- Esquema: migración desde base vacía, vuelta atrás y de nuevo arriba; modelos y migración sin
+  deriva; restricciones SQL (unicidad, formatos, estados, tramos de 0,25 h y claves foráneas).
+- API de máquinas: permisos por actor, normalización y unicidad del código (también en altas
+  simultáneas), campos obligatorios vacíos, paginación, filtros, estado efectivo con dos paradas
+  simultáneas, baja solo con averías cerradas y conservación de horas e historial.
+- API de personas: alta inicial, validación de email y coste, filtros, bloqueo de baja y cambio de
+  rol de un técnico con averías a su cargo, último responsable activo (también con dos bajas
+  simultáneas), reactivación y conservación de relaciones.
+- Frontend: alta del primer responsable, filtros leídos de la URL, acciones ocultas a quien no es
+  responsable, envío de `X-Actor-Id`, errores junto a cada campo, bajas bloqueadas con su motivo,
+  formato de horas y fechas, y la página de estado.
+
+Las averías e imputaciones de estas pruebas se insertan con SQL porque su API llega en la Fase 3.
 
 ## Configuración
 
@@ -131,9 +147,51 @@ Todas las variables están en [.env.example](.env.example), sin secretos reales.
 | `OPERATION_TIMEZONE` | Zona de operación (`Europe/Madrid` por defecto) |
 | `POSTGRES_PORT`, `BACKEND_PORT`, `FRONTEND_PORT` | Puertos publicados en el host |
 
-**Identidad simulada.** La spec define un selector de persona activa que envía `X-Actor-Id` en
-cada escritura. Se implementa con las primeras escrituras en la Fase 2. En la Fase 1 no hay
-endpoints de escritura.
+**Identidad simulada.** El selector «Persona activa» de la cabecera lista las personas activas.
+La elegida se recuerda en el navegador (`localStorage`) y el cliente HTTP la envía como
+`X-Actor-Id` en cada escritura. La API carga a esa persona y valida que exista, esté activa y
+tenga el rol necesario. Es una simulación local sin autenticación real. Las lecturas no necesitan
+actor. Con «Solo consulta» la interfaz oculta las acciones de gestión.
+
+## API (Fase 2)
+
+Documentación interactiva en http://localhost:8000/docs. Prefijo `/api/v1`.
+
+| Recurso | Endpoints | Filtros |
+| --- | --- | --- |
+| Máquinas | `GET/POST /machines`, `GET/PATCH/DELETE /machines/{id}` | `status` (estado efectivo), `location` y `type` (coincidencia parcial sin distinguir mayúsculas) |
+| Personas | `GET/POST /people`, `GET/PATCH/DELETE /people/{id}` | `role`, `active` |
+
+- Listados con `page` y `page_size` (25 por defecto, máximo 100) que devuelven `items`, `total`,
+  `page` y `page_size`. Máquinas por código y personas por nombre, con desempate por ID. Incluyen
+  los registros de baja salvo que se filtre.
+- El detalle de máquina añade `worked_minutes` (horas acumuladas de todas sus averías) y
+  `open_incidents`. El de persona añade `worked_minutes` y `open_assignments` (averías asignadas o
+  en curso). Las sumas se calculan en SQL.
+- `POST`, `PATCH` y `DELETE` exigen un responsable activo en `X-Actor-Id`. `PATCH` es parcial: solo
+  cambia los campos enviados, `null` vacía un opcional y rechaza vaciar un obligatorio.
+- `DELETE` es una baja lógica (`204`, idempotente): la máquina pasa a `de_baja` y la persona a
+  inactiva. Se conservan todos los registros y relaciones.
+
+**Formato de error.** Todas las respuestas de error comparten esta forma:
+
+```json
+{"code": "machine_code_taken", "message": "Ya existe una máquina con ese código",
+ "fields": [{"field": "code", "message": "Ya existe una máquina con ese código"}]}
+```
+
+`code` es estable para programas, `message` está en español para la interfaz y `fields` lista los
+campos afectados cuando aplica. Códigos HTTP: `403` actor ausente, inválido, inactivo o sin
+permiso (`actor_required`, `actor_invalid`, `actor_not_found`, `actor_inactive`,
+`actor_role_forbidden`); `404` recurso inexistente; `409` conflicto (`machine_code_taken`,
+`machine_retired`, `machine_has_open_incidents`, `technician_has_open_incidents`,
+`last_responsable`); `422` datos no válidos (`validation_error`).
+
+**Concurrencia.** Cada escritura es una transacción. Las reglas que dependen de otras filas se
+comprueban tras bloquear con `SELECT … FOR UPDATE/SHARE` en un orden fijo: personas (actor,
+persona afectada y, si cambia rol o vigencia, todos los responsables activos) en una sola consulta
+por ID ascendente, después máquinas y después averías. Tras los bloqueos se repiten las consultas
+de comprobación. Ver `backend/app/services/locking.py`.
 
 ## Esquema inicial
 
@@ -174,10 +232,23 @@ estado efectivo de la máquina.
 - **Tiempo de parada** no se guarda: se calcula en el backend a partir de detección y resolución.
 - **Numeración de averías.** La secuencia existe desde la migración inicial. La composición
   `AV-<año en la zona de operación>-<n>` se hará en el servicio de alta (Fase 3).
+- **Primer responsable.** La gestión de personas exige un responsable activo, así que una base
+  vacía no tendría a nadie con permiso. `POST /people` admite una petición sin actor solo si la
+  tabla de personas está vacía y la persona es responsable. Un bloqueo de tabla evita dos altas
+  iniciales simultáneas. En cuanto existe una persona, la excepción deja de aplicarse.
+- **Bajas.** `DELETE` hace la baja lógica. Una persona inactiva se puede reactivar con
+  `PATCH {"active": true}`. Una máquina de baja queda solo para consulta (`409` al editarla).
+  La condición administrativa se elige entre operativa y fuera de servicio; la baja solo por
+  `DELETE`.
+- **Nombre y apellidos** se guardan en un único campo `full_name`, como en el esquema inicial.
+- **Email** se guarda en minúsculas. El coste por hora viaja como decimal en texto (`"35.50"`) y la
+  interfaz admite coma decimal.
+- **Historial de averías en la ficha de máquina.** La spec lo obtiene de `GET /incidents`, que se
+  implementa en la Fase 3. En la Fase 2 la ficha muestra horas acumuladas y averías sin cerrar.
 
 ## Fases
 
 1. **Base ejecutable** (hecha): monorepo, Compose, configuración, migración inicial y verificación.
-2. **Catálogos**: API y pantallas de máquinas y personas, filtros y bajas.
+2. **Catálogos** (hecha): API y pantallas de máquinas y personas, filtros y bajas.
 3. **Flujo de averías**: registrar, asignar, iniciar, imputar, resolver y cerrar.
 4. **Consulta y entrega**: histórico, totales, datos de demostración y recorrido completo.

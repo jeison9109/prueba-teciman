@@ -12,10 +12,14 @@ from collections.abc import Iterator
 import pytest
 from alembic import command
 from alembic.config import Config
+from fastapi.testclient import TestClient
 from sqlalchemy import Engine, create_engine, make_url, text
 from sqlalchemy.engine import URL
+from sqlalchemy.orm import Session
 
 from app.config import get_settings
+from app.db.session import get_session
+from app.main import app
 
 BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -68,3 +72,29 @@ def engine(migrated_url: URL) -> Iterator[Engine]:
     engine = create_engine(migrated_url)
     yield engine
     engine.dispose()
+
+
+TABLES_IN_DELETE_ORDER = "work_logs, incidents, people, machines"
+
+
+@pytest.fixture
+def api_engine(migrated_url: URL) -> Iterator[Engine]:
+    """Motor sobre la base migrada, vaciada antes de cada prueba de API."""
+    engine = create_engine(migrated_url)
+    with engine.begin() as connection:
+        connection.execute(text(f"TRUNCATE {TABLES_IN_DELETE_ORDER} RESTART IDENTITY CASCADE"))
+    yield engine
+    engine.dispose()
+
+
+@pytest.fixture
+def client(api_engine: Engine) -> Iterator[TestClient]:
+    def override() -> Iterator[Session]:
+        with Session(api_engine, expire_on_commit=False) as session:
+            yield session
+
+    app.dependency_overrides[get_session] = override
+    try:
+        yield TestClient(app)
+    finally:
+        app.dependency_overrides.clear()
