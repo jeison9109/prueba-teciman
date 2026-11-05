@@ -284,3 +284,88 @@ td {
 .status--pending {
   color: var(--muted);
 }
+
+textarea {
+  font: inherit;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  background: #fff;
+  resize: vertical;
+}
+
+.field--invalid textarea {
+  border-color: var(--danger);
+}
+
+.inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.badges {
+  display: inline-flex;
+  gap: 0.5rem;
+}
+
+.sections {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  gap: 0 2rem;
+}
+
+.pre-line {
+  white-space: pre-line;
+}
+
+.card + .card,
+.actions.card {
+  margin-top: 1rem;
+}
+
+.badge--incident-abierta {
+  background: #fde8e8;
+  color: #9b1c1c;
+}
+
+.badge--incident-asignada {
+  background: #fdf6b2;
+  color: #723b13;
+}
+
+.badge--incident-en_curso {
+  background: #e1effe;
+  color: #1e429f;
+}
+
+.badge--incident-resuelta {
+  background: #def7ec;
+  color: #03543f;
+}
+
+.badge--incident-cerrada {
+  background: #e4e7eb;
+  color: #3e4c59;
+}
+
+.badge--priority-urgente {
+  background: #9b1c1c;
+  color: #fff;
+}
+
+.badge--priority-alta {
+  background: #fde8e8;
+  color: #9b1c1c;
+}
+
+.badge--priority-media {
+  background: #fdf6b2;
+  color: #723b13;
+}
+
+.badge--priority-baja {
+  background: #e4e7eb;
+  color: #3e4c59;
+}
