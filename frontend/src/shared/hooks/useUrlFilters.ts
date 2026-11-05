@@ -11,6 +11,8 @@ export function useUrlFilters<K extends string>(
   filters: Record<K, string>
   page: number
   setFilter: (key: K, value: string) => void
+  /** Cambia varios filtros en una sola navegación. */
+  setFilters: (values: Partial<Record<K, string>>) => void
   setPage: (page: number) => void
   clear: () => void
 } {
@@ -22,13 +24,15 @@ export function useUrlFilters<K extends string>(
   const parsedPage = Number(params.get('page') ?? '1')
   const page = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1
 
-  const setFilter = useCallback(
-    (key: K, value: string) => {
+  const setFilters = useCallback(
+    (values: Partial<Record<K, string>>) => {
       setParams(
         (previous) => {
           const next = new URLSearchParams(previous)
-          if (value) next.set(key, value)
-          else next.delete(key)
+          for (const [key, value] of Object.entries(values) as [K, string | undefined][]) {
+            if (value) next.set(key, value)
+            else next.delete(key)
+          }
           next.delete('page')
           return next
         },
@@ -36,6 +40,13 @@ export function useUrlFilters<K extends string>(
       )
     },
     [setParams],
+  )
+
+  const setFilter = useCallback(
+    (key: K, value: string) => {
+      setFilters({ [key]: value } as Partial<Record<K, string>>)
+    },
+    [setFilters],
   )
 
   const setPage = useCallback(
@@ -54,5 +65,5 @@ export function useUrlFilters<K extends string>(
     setParams(new URLSearchParams(), { replace: true })
   }, [setParams])
 
-  return { filters, page, setFilter, setPage, clear }
+  return { filters, page, setFilter, setFilters, setPage, clear }
 }
