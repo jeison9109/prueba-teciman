@@ -318,6 +318,19 @@ pide.
   pulsación, y la máquina al elegirla. Los filtros viven en la URL.
 - **Sin técnicos activos.** Al asignar o reasignar sin técnicos disponibles, el selector explica
   el motivo y enlaza a dar de alta un técnico o a reactivarlo en Personas.
+- **Sistema visual.** `app/styles.css` define tokens de color, tipografía, espaciado y elevación;
+  los componentes solo usan esas variables. Iconos SVG en línea (`shared/components/Icon.tsx`),
+  sin dependencias ni CDN. Navegación lateral agrupada por uso (operación, catálogo, sistema),
+  que en pantallas estrechas se pliega en un menú.
+- **Bandeja con resumen.** Sobre la bandeja, tarjetas con los totales pendientes por estado y las
+  máquinas paradas (consultas con `page_size=1`, solo el total). Cada tarjeta filtra la lista. Si
+  el resumen falla se oculta y la bandeja sigue funcionando.
+- **Detalle guiado.** La avería muestra su ciclo de vida, el siguiente paso con quién debe darlo y
+  las acciones disponibles en el mismo bloque. La resolución destaca causa raíz y solución, y
+  mientras está abierta enlaza a las reparaciones anteriores de la misma máquina en el histórico.
+- **Estados y respuesta.** Esqueletos de carga, vacíos con icono y acción, avisos de éxito que se
+  pueden cerrar y confirmaciones en línea. En móvil las tablas se muestran como tarjetas con la
+  etiqueta de cada dato. Se respeta `prefers-reduced-motion` y hay enlace para saltar al contenido.
 
 ### Datos de demostración
 
