@@ -1,3 +1,4 @@
+import { Icon } from '../shared/components/Icon'
 import { useSubmit } from '../shared/hooks/useSubmit'
 import { createPerson } from '../features/people/api'
 import { PersonForm } from '../features/people/PersonForm'
@@ -8,7 +9,10 @@ export function SetupPage() {
   const { selectActor, refresh } = useActor()
   const { state, submit } = useSubmit()
   return (
-    <section className="card" aria-labelledby="setup-title">
+    <section className="card welcome" aria-labelledby="setup-title">
+      <span className="welcome__icon">
+        <Icon name="wrench" size={22} />
+      </span>
       <h1 id="setup-title">Primer responsable</h1>
       <p>
         No hay ninguna persona registrada. Crea el primer responsable para empezar a gestionar

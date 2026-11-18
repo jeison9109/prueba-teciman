@@ -2,6 +2,7 @@ import { useState, type SubmitEvent } from 'react'
 import { useTimezone } from '../../app/SettingsContext'
 import { Empty, ErrorMessage, Loading } from '../../shared/components/AsyncStatus'
 import { TextAreaField, TextField } from '../../shared/components/Field'
+import { Icon } from '../../shared/components/Icon'
 import { useAsyncData } from '../../shared/hooks/useAsyncData'
 import { useSubmit } from '../../shared/hooks/useSubmit'
 import { localDate } from '../../shared/utils/datetime'
@@ -55,47 +56,70 @@ export function WorkLogSection({ incident, canLog, onLogged }: WorkLogSectionPro
   }
 
   return (
-    <section aria-labelledby="work-logs-title">
-      <h2 id="work-logs-title">Imputaciones</h2>
-      {state.kind === 'loading' && <Loading />}
+    <section className="card stack" aria-labelledby="work-logs-title">
+      <div className="section-header">
+        <h2 id="work-logs-title" className="card__title">
+          <Icon name="clock" />
+          Imputaciones
+        </h2>
+      </div>
+      {state.kind === 'loading' && <Loading rows={3} />}
       {state.kind === 'error' && <ErrorMessage message={state.message} onRetry={reload} />}
       {state.kind === 'ready' && state.data.items.length === 0 && (
-        <Empty>Todavía no hay trabajo imputado.</Empty>
+        <Empty icon="clock">Todavía no hay trabajo imputado.</Empty>
       )}
       {state.kind === 'ready' && state.data.items.length > 0 && (
-        <table>
-          <thead>
-            <tr>
-              <th scope="col">Fecha</th>
-              <th scope="col">Técnico</th>
-              <th scope="col">Horas</th>
-              <th scope="col">Trabajo realizado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {state.data.items.map((log) => (
-              <tr key={log.id}>
-                <td>{formatDate(log.work_date)}</td>
-                <td>{log.technician.full_name}</td>
-                <td>{formatHours(log.minutes)}</td>
-                <td className="pre-line">{log.description}</td>
+        <div className="table-wrap">
+          <table className="table--stack">
+            <thead>
+              <tr>
+                <th scope="col">Fecha</th>
+                <th scope="col">Técnico</th>
+                <th scope="col" className="num">
+                  Horas
+                </th>
+                <th scope="col">Trabajo realizado</th>
               </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr>
-              <th scope="row" colSpan={2}>
-                Total
-              </th>
-              <td>{formatHours(incident.worked_minutes)}</td>
-              <td />
-            </tr>
-          </tfoot>
-        </table>
+            </thead>
+            <tbody>
+              {state.data.items.map((log) => (
+                <tr key={log.id}>
+                  <td className="nowrap" data-label="Fecha">
+                    {formatDate(log.work_date)}
+                  </td>
+                  <td data-label="Técnico">{log.technician.full_name}</td>
+                  <td className="num" data-label="Horas">
+                    {formatHours(log.minutes)}
+                  </td>
+                  <td className="pre-line cell--wide" data-label="Trabajo realizado">
+                    {log.description}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr>
+                <th scope="row" colSpan={2}>
+                  Total
+                </th>
+                <td className="num" data-label="Total">
+                  {formatHours(incident.worked_minutes)}
+                </td>
+                <td />
+              </tr>
+            </tfoot>
+          </table>
+        </div>
       )}
 
       {canLog && (
-        <form className="form form--grid card" onSubmit={handleSubmit} noValidate aria-label="Imputar trabajo">
+        <form
+          className="form form--grid worklog-form"
+          onSubmit={handleSubmit}
+          noValidate
+          aria-label="Imputar trabajo"
+        >
+          <h3 className="form__full">Imputar trabajo</h3>
           <TextField
             label="Fecha de trabajo"
             type="date"
@@ -129,6 +153,7 @@ export function WorkLogSection({ incident, canLog, onLogged }: WorkLogSectionPro
           {submission.state.error && <ErrorMessage message={submission.state.error} />}
           <div className="actions form__full">
             <button type="submit" className="button--primary" disabled={submission.state.pending}>
+              <Icon name="plus" />
               {submission.state.pending ? 'Guardando…' : 'Imputar horas'}
             </button>
           </div>

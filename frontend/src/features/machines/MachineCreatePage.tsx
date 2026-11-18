@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router'
+import { PageHeader } from '../../shared/components/PageHeader'
 import { useSubmit } from '../../shared/hooks/useSubmit'
 import { createMachine } from './api'
 import { MachineForm } from './MachineForm'
@@ -8,8 +9,14 @@ export function MachineCreatePage() {
   const { state, submit } = useSubmit()
   return (
     <section aria-labelledby="machine-create-title">
-      <h1 id="machine-create-title">Nueva máquina</h1>
-      <MachineForm
+      <PageHeader
+        titleId="machine-create-title"
+        back={{ to: '/maquinas', label: 'Máquinas' }}
+        title="Nueva máquina"
+        description="Los campos marcados con * son obligatorios."
+      />
+      <div className="card">
+        <MachineForm
         submitLabel="Crear máquina"
         submitState={state}
         onCancel={() => {
@@ -23,7 +30,8 @@ export function MachineCreatePage() {
             })
           })
         }}
-      />
+        />
+      </div>
     </section>
   )
 }

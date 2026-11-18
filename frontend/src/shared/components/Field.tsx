@@ -23,7 +23,11 @@ function FieldShell({ label, error, hint, required, children }: FieldShellProps)
     <div className={`field${error ? ' field--invalid' : ''}`}>
       <label htmlFor={id}>
         {label}
-        {required && <span aria-hidden="true"> *</span>}
+        {required && (
+          <span className="field__required" aria-hidden="true">
+            *
+          </span>
+        )}
       </label>
       {children({ id, 'aria-invalid': Boolean(error), 'aria-describedby': describedBy })}
       {hint && (

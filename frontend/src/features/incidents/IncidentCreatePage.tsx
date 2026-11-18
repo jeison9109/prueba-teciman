@@ -2,8 +2,10 @@ import { useState, type SubmitEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { useActor } from '../../app/ActorContext'
 import { useTimezone } from '../../app/SettingsContext'
-import { ErrorMessage } from '../../shared/components/AsyncStatus'
+import { Empty, ErrorMessage } from '../../shared/components/AsyncStatus'
 import { SelectField, TextAreaField, TextField } from '../../shared/components/Field'
+import { Icon } from '../../shared/components/Icon'
+import { PageHeader } from '../../shared/components/PageHeader'
 import { useSubmit } from '../../shared/hooks/useSubmit'
 import { localDateTimeInput } from '../../shared/utils/datetime'
 import { optionsFrom } from '../../shared/utils/options'
@@ -49,7 +51,20 @@ export function IncidentCreatePage() {
 
   if (!actor) {
     return (
-      <ErrorMessage message="Elige una persona activa en la cabecera para registrar una avería." />
+      <section aria-labelledby="incident-create-title" className="welcome">
+        <Empty
+          icon="user"
+          action={
+            <Link className="button" to="/averias">
+              Volver a averías
+            </Link>
+          }
+        >
+          <span id="incident-create-title">
+            Elige una persona activa en el menú para registrar una avería.
+          </span>
+        </Empty>
+      </section>
     )
   }
 
@@ -73,87 +88,112 @@ export function IncidentCreatePage() {
     })
   }
 
+  const machineOptions = machines.state.kind === 'ready' ? machines.state.data : []
+
   return (
     <section aria-labelledby="incident-create-title">
-      <p>
-        <Link to="/averias">← Averías</Link>
-      </p>
-      <h1 id="incident-create-title">Registrar avería</h1>
-      <p className="muted">
-        Quedará registrada a nombre de {actor.full_name}. Horas en la zona {timeZone}.
-      </p>
+      <PageHeader
+        titleId="incident-create-title"
+        back={{ to: '/averias', label: 'Averías' }}
+        title="Registrar avería"
+        description={
+          <>
+            Quedará registrada a nombre de <strong>{actor.full_name}</strong>. Las horas se
+            indican en la zona {timeZone}.
+          </>
+        }
+      />
       {machines.state.kind === 'error' && (
         <ErrorMessage message={machines.state.message} onRetry={machines.reload} />
       )}
-      <form className="form form--grid" onSubmit={handleSubmit} noValidate>
-        <SelectField
-          label="Máquina"
-          value={values.machine_id}
-          options={machines.state.kind === 'ready' ? machines.state.data : []}
-          onChange={set('machine_id')}
-          error={errors.machine_id}
-          emptyLabel={machines.state.kind === 'loading' ? 'Cargando…' : 'Selecciona la máquina'}
-          hint="Las máquinas de baja no admiten nuevas averías"
-          required
-        />
-        <TextField
-          label="Detección"
-          type="datetime-local"
-          value={values.detected_at}
-          onChange={set('detected_at')}
-          error={errors.detected_at}
-          max={localDateTimeInput(new Date(), timeZone)}
-          required
-        />
-        <TextField
-          label="Título"
-          value={values.title}
-          onChange={set('title')}
-          error={errors.title}
-          maxLength={160}
-          required
-        />
-        <SelectField
-          label="¿Ha parado la máquina?"
-          value={values.machine_stopped}
-          options={STOPPED_OPTIONS}
-          onChange={set('machine_stopped')}
-          error={errors.machine_stopped}
-          emptyLabel="Indica si hay parada"
-          required
-        />
-        <SelectField
-          label="Tipo de fallo"
-          value={values.failure_type}
-          options={optionsFrom(FAILURE_TYPE_LABELS)}
-          onChange={set('failure_type')}
-          error={errors.failure_type}
-          emptyLabel="Selecciona el tipo"
-          required
-        />
-        <SelectField
-          label="Prioridad"
-          value={values.priority}
-          options={optionsFrom(PRIORITY_LABELS)}
-          onChange={set('priority')}
-          error={errors.priority}
-          emptyLabel="Selecciona la prioridad"
-          required
-        />
-        <div className="form__full">
-          <TextAreaField
-            label="Síntoma"
-            value={values.symptom}
-            onChange={set('symptom')}
-            error={errors.symptom}
-            maxLength={4000}
-            hint="Qué se observa: ruidos, fugas, alarmas, mensajes…"
+      <form className="card stack" onSubmit={handleSubmit} noValidate>
+        <div className="form-section">
+          <div className="form-section__title">
+            <h2>Máquina afectada</h2>
+            <p>Si la máquina está parada pasará a «En avería» hasta que se resuelva.</p>
+          </div>
+          <SelectField
+            label="Máquina"
+            value={values.machine_id}
+            options={machineOptions}
+            onChange={set('machine_id')}
+            error={errors.machine_id}
+            emptyLabel={machines.state.kind === 'loading' ? 'Cargando…' : 'Selecciona la máquina'}
+            hint="Las máquinas de baja no admiten nuevas averías"
+            required
+          />
+          <TextField
+            label="Detección"
+            type="datetime-local"
+            value={values.detected_at}
+            onChange={set('detected_at')}
+            error={errors.detected_at}
+            max={localDateTimeInput(new Date(), timeZone)}
+            required
+          />
+          <SelectField
+            label="¿Ha parado la máquina?"
+            value={values.machine_stopped}
+            options={STOPPED_OPTIONS}
+            onChange={set('machine_stopped')}
+            error={errors.machine_stopped}
+            emptyLabel="Indica si hay parada"
             required
           />
         </div>
+
+        <div className="form-section">
+          <div className="form-section__title">
+            <h2>Qué ocurre</h2>
+            <p>Descríbelo con tus palabras: ayudará al técnico y a buscarlo en el histórico.</p>
+          </div>
+          <div className="form__full">
+            <TextField
+              label="Título"
+              value={values.title}
+              onChange={set('title')}
+              error={errors.title}
+              maxLength={160}
+              placeholder="Resumen breve, p. ej. «Fuga de aceite en el cilindro»"
+              required
+            />
+          </div>
+          <div className="form__full">
+            <TextAreaField
+              label="Síntoma"
+              value={values.symptom}
+              onChange={set('symptom')}
+              error={errors.symptom}
+              maxLength={4000}
+              rows={4}
+              hint="Qué se observa: ruidos, fugas, alarmas, mensajes…"
+              required
+            />
+          </div>
+          <SelectField
+            label="Tipo de fallo"
+            value={values.failure_type}
+            options={optionsFrom(FAILURE_TYPE_LABELS)}
+            onChange={set('failure_type')}
+            error={errors.failure_type}
+            emptyLabel="Selecciona el tipo"
+            required
+          />
+          <SelectField
+            label="Prioridad"
+            value={values.priority}
+            options={optionsFrom(PRIORITY_LABELS)}
+            onChange={set('priority')}
+            error={errors.priority}
+            emptyLabel="Selecciona la prioridad"
+            required
+          />
+        </div>
+
         {state.error && <ErrorMessage message={state.error} />}
-        <div className="actions form__full">
+        <div className="actions form-footer">
           <button type="submit" className="button--primary" disabled={state.pending}>
+            <Icon name="plus" />
             {state.pending ? 'Registrando…' : 'Registrar avería'}
           </button>
           <Link className="button" to="/averias">

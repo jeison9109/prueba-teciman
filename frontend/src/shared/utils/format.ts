@@ -32,3 +32,12 @@ export function formatDate(value: string | null): string {
 export function orDash(value: string | null | undefined): string {
   return value?.trim() ? value : '—'
 }
+
+/** Iniciales para el avatar: "Rosa Martín Vidal" → "RM". */
+export function initials(fullName: string): string {
+  const words = fullName.trim().split(/\s+/).filter(Boolean)
+  return words
+    .slice(0, 2)
+    .map((word) => word.charAt(0).toLocaleUpperCase(LOCALE))
+    .join('')
+}

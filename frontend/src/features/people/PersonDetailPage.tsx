@@ -1,14 +1,17 @@
 import { useState } from 'react'
-import { Link, useLocation, useParams } from 'react-router'
+import { useLocation, useParams } from 'react-router'
 import { useActor } from '../../app/ActorContext'
 import { ErrorMessage, Loading, SuccessMessage } from '../../shared/components/AsyncStatus'
 import { ConfirmButton } from '../../shared/components/ConfirmButton'
+import { Icon } from '../../shared/components/Icon'
+import { PageHeader } from '../../shared/components/PageHeader'
 import { useAsyncData } from '../../shared/hooks/useAsyncData'
 import { useSubmit } from '../../shared/hooks/useSubmit'
 import { formatEuros, formatHours, orDash } from '../../shared/utils/format'
 import { getPerson, retirePerson, updatePerson, type PersonDetail } from './api'
 import { ROLE_LABELS, SPECIALTY_LABELS } from './labels'
 import { PersonForm } from './PersonForm'
+import { PersonStatusBadge } from './PersonStatusBadge'
 
 function retireBlockReason(person: PersonDetail): string | null {
   if (person.role === 'tecnico' && person.open_assignments > 0) {
@@ -34,7 +37,7 @@ export function PersonDetailPage() {
     refreshActors()
   }
 
-  if (state.kind === 'loading') return <Loading />
+  if (state.kind === 'loading') return <Loading rows={6} />
   if (state.kind === 'error') {
     return (
       <ErrorMessage
@@ -46,102 +49,149 @@ export function PersonDetailPage() {
   const person = state.data
   const blockReason = retireBlockReason(person)
 
-  return (
-    <section aria-labelledby="person-title">
-      <p>
-        <Link to="/personas">← Personas</Link>
-      </p>
-      <div className="page-header">
-        <h1 id="person-title">{person.full_name}</h1>
-        <span className={`badge badge--${person.active ? 'operativa' : 'de_baja'}`}>
-          {person.active ? 'Activa' : 'De baja'}
-        </span>
-      </div>
-      {notice && <SuccessMessage>{notice}</SuccessMessage>}
-
-      {editing ? (
-        <PersonForm
-          person={person}
-          submitLabel="Guardar cambios"
-          submitState={edit.state}
-          onCancel={() => {
-            edit.reset()
-            setEditing(false)
-          }}
-          onSubmit={(input) => {
-            void edit.submit(() => updatePerson(person.id, input)).then((result) => {
-              if (!result) return
-              setEditing(false)
-              afterChange('Cambios guardados')
+  const actionButtons = isManager && !editing && (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          setNotice(null)
+          setEditing(true)
+        }}
+      >
+        <Icon name="edit" size={16} />
+        Editar
+      </button>
+      {person.active ? (
+        <ConfirmButton
+          label="Dar de baja"
+          confirmLabel="Confirmar baja"
+          question="La persona no podrá registrar ni recibir asignaciones."
+          danger
+          disabled={blockReason !== null}
+          pending={action.state.pending}
+          onConfirm={() => {
+            void action.submit(() => retirePerson(person.id)).then((result) => {
+              if (result !== undefined) afterChange('Persona dada de baja')
             })
           }}
         />
       ) : (
+        <button
+          type="button"
+          disabled={action.state.pending}
+          onClick={() => {
+            void action
+              .submit(() => updatePerson(person.id, { active: true }))
+              .then((result) => {
+                if (result) afterChange('Persona reactivada')
+              })
+          }}
+        >
+          <Icon name="refresh" size={16} />
+          Reactivar
+        </button>
+      )}
+    </>
+  )
+
+  return (
+    <section aria-labelledby="person-title">
+      <PageHeader
+        titleId="person-title"
+        back={{ to: '/personas', label: 'Personas' }}
+        title={person.full_name}
+        meta={
+          <>
+            <PersonStatusBadge active={person.active} />
+            <span className="badge">{ROLE_LABELS[person.role]}</span>
+          </>
+        }
+        actions={actionButtons}
+      />
+      {notice && (
+        <SuccessMessage
+          onDismiss={() => {
+            setNotice(null)
+          }}
+        >
+          {notice}
+        </SuccessMessage>
+      )}
+      {action.state.error && <ErrorMessage message={action.state.error} />}
+      {isManager && !editing && person.active && blockReason && (
+        <p className="alert alert--info">
+          <Icon name="info" />
+          <span className="alert__body">{blockReason}</span>
+        </p>
+      )}
+
+      {editing ? (
+        <div className="card">
+          <PersonForm
+            person={person}
+            submitLabel="Guardar cambios"
+            submitState={edit.state}
+            onCancel={() => {
+              edit.reset()
+              setEditing(false)
+            }}
+            onSubmit={(input) => {
+              void edit.submit(() => updatePerson(person.id, input)).then((result) => {
+                if (!result) return
+                setEditing(false)
+                afterChange('Cambios guardados')
+              })
+            }}
+          />
+        </div>
+      ) : (
         <>
-          <dl className="details">
-            <dt>Rol</dt>
-            <dd>{ROLE_LABELS[person.role]}</dd>
-            <dt>Especialidad</dt>
-            <dd>{person.specialty ? SPECIALTY_LABELS[person.specialty] : '—'}</dd>
-            <dt>Email</dt>
-            <dd>{orDash(person.email)}</dd>
-            <dt>Teléfono</dt>
-            <dd>{orDash(person.phone)}</dd>
-            <dt>Coste por hora</dt>
-            <dd>{formatEuros(person.hourly_cost)}</dd>
-            {person.role === 'tecnico' && (
-              <>
-                <dt>Averías a su cargo</dt>
-                <dd>{person.open_assignments}</dd>
-              </>
-            )}
-            <dt>Horas imputadas</dt>
-            <dd>{formatHours(person.worked_minutes)}</dd>
-          </dl>
-          {action.state.error && <ErrorMessage message={action.state.error} />}
-          {isManager && (
-            <div className="actions">
-              <button
-                type="button"
-                onClick={() => {
-                  setNotice(null)
-                  setEditing(true)
-                }}
-              >
-                Editar
-              </button>
-              {person.active ? (
-                <ConfirmButton
-                  label="Dar de baja"
-                  confirmLabel="Confirmar baja"
-                  question="La persona no podrá registrar ni recibir asignaciones."
-                  danger
-                  disabled={blockReason !== null}
-                  pending={action.state.pending}
-                  onConfirm={() => {
-                    void action.submit(() => retirePerson(person.id)).then((result) => {
-                      if (result !== undefined) afterChange('Persona dada de baja')
-                    })
-                  }}
-                />
-              ) : (
-                <button
-                  type="button"
-                  disabled={action.state.pending}
-                  onClick={() => {
-                    void action
-                      .submit(() => updatePerson(person.id, { active: true }))
-                      .then((result) => {
-                        if (result) afterChange('Persona reactivada')
-                      })
-                  }}
-                >
-                  Reactivar
-                </button>
-              )}
+          <div className="stats">
+            <div className="stat">
+              <span className="stat__label">
+                <Icon name="clock" size={16} />
+                Horas imputadas
+              </span>
+              <span className="stat__value">{formatHours(person.worked_minutes)}</span>
             </div>
-          )}
-          {isManager && person.active && blockReason && <p className="muted">{blockReason}</p>}
+            {person.role === 'tecnico' && (
+              <div className={`stat${person.open_assignments > 0 ? ' stat--info' : ''}`}>
+                <span className="stat__label">
+                  <Icon name="wrench" size={16} />
+                  Averías a su cargo
+                </span>
+                <span className="stat__value">{person.open_assignments}</span>
+              </div>
+            )}
+          </div>
+          <section className="card" aria-labelledby="person-data-title">
+            <h2 id="person-data-title" className="card__title">
+              <Icon name="user" />
+              Datos de contacto y coste
+            </h2>
+            <dl className="details details--columns">
+              <div>
+                <dt>Rol</dt>
+                <dd>{ROLE_LABELS[person.role]}</dd>
+              </div>
+              <div>
+                <dt>Especialidad</dt>
+                <dd>{person.specialty ? SPECIALTY_LABELS[person.specialty] : '—'}</dd>
+              </div>
+              <div>
+                <dt>Email</dt>
+                <dd>{orDash(person.email)}</dd>
+              </div>
+              <div>
+                <dt>Teléfono</dt>
+                <dd>{orDash(person.phone)}</dd>
+              </div>
+              <div>
+                <dt>Coste por hora</dt>
+                <dd>{formatEuros(person.hourly_cost)}</dd>
+              </div>
+            </dl>
+          </section>
         </>
       )}
     </section>
