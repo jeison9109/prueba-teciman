@@ -1854,3 +1854,31 @@ a.stat[aria-current='true'] {
     display: none;
   }
 }
+
+/* Enlaces dentro de tablas, fichas e histórico: sin subrayado salvo al pasar el ratón o con foco. */
+.table-wrap a,
+.details a,
+.history-card__meta a {
+  text-decoration: none;
+}
+
+.table-wrap a:hover,
+.table-wrap a:focus-visible,
+.details a:hover,
+.details a:focus-visible,
+.history-card__meta a:hover,
+.history-card__meta a:focus-visible {
+  text-decoration: underline;
+}
+
+.cell-person a {
+  color: var(--text);
+}
+
+.cell-person a:hover {
+  color: var(--primary);
+}
+
+.row--retired .cell-person a {
+  color: var(--muted);
+}
