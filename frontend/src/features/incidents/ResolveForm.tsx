@@ -1,5 +1,6 @@
 import { useState, type SubmitEvent } from 'react'
 import { SelectField, TextAreaField } from '../../shared/components/Field'
+import { Icon } from '../../shared/components/Icon'
 import type { SubmitState } from '../../shared/hooks/useSubmit'
 import { optionsFrom } from '../../shared/utils/options'
 import type { ResolveInput, SolutionType } from './api'
@@ -41,13 +42,15 @@ export function ResolveForm({ submitState, onSubmit, onCancel }: ResolveFormProp
   }
 
   return (
-    <form className="form form--grid card" onSubmit={handleSubmit} noValidate aria-label="Resolver avería">
+    <form className="form form--grid" onSubmit={handleSubmit} noValidate aria-label="Resolver avería">
       <TextAreaField
         label="Causa raíz"
         value={values.root_cause}
         onChange={set('root_cause')}
         error={errors.root_cause}
+        hint="Por qué ha fallado, no solo qué ha fallado"
         maxLength={4000}
+        rows={4}
         required
       />
       <TextAreaField
@@ -55,7 +58,9 @@ export function ResolveForm({ submitState, onSubmit, onCancel }: ResolveFormProp
         value={values.solution}
         onChange={set('solution')}
         error={errors.solution}
+        hint="Pasos seguidos para arreglarla"
         maxLength={4000}
+        rows={4}
         required
       />
       <TextAreaField
@@ -81,12 +86,14 @@ export function ResolveForm({ submitState, onSubmit, onCancel }: ResolveFormProp
           value={values.preventive_recommendation}
           onChange={set('preventive_recommendation')}
           error={errors.preventive_recommendation}
+          hint="Qué hacer para que no se repita"
           maxLength={4000}
           rows={2}
         />
       </div>
       <div className="actions form__full">
         <button type="submit" className="button--primary" disabled={submitState.pending}>
+          <Icon name="check" />
           {submitState.pending ? 'Enviando…' : 'Marcar como resuelta'}
         </button>
         <button type="button" onClick={onCancel} disabled={submitState.pending}>

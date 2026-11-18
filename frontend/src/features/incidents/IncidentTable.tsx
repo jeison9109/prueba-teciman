@@ -1,5 +1,6 @@
 import { Link } from 'react-router'
 import { useTimezone } from '../../app/SettingsContext'
+import { Icon } from '../../shared/components/Icon'
 import { formatDateTime } from '../../shared/utils/datetime'
 import { formatHours } from '../../shared/utils/format'
 import type { Incident } from './api'
@@ -14,46 +15,76 @@ interface IncidentTableProps {
 export function IncidentTable({ incidents, showMachine = true }: IncidentTableProps) {
   const timeZone = useTimezone()
   return (
-    <table>
-      <thead>
-        <tr>
-          <th scope="col">Número</th>
-          <th scope="col">Título</th>
-          {showMachine && <th scope="col">Máquina</th>}
-          <th scope="col">Detección</th>
-          <th scope="col">Prioridad</th>
-          <th scope="col">Parada</th>
-          <th scope="col">Técnico</th>
-          <th scope="col">Horas</th>
-          <th scope="col">Estado</th>
-        </tr>
-      </thead>
-      <tbody>
-        {incidents.map((incident) => (
-          <tr key={incident.id}>
-            <td>
-              <Link to={`/averias/${String(incident.id)}`}>{incident.number}</Link>
-            </td>
-            <td>{incident.title}</td>
-            {showMachine && (
-              <td>
-                <Link to={`/maquinas/${String(incident.machine.id)}`}>{incident.machine.code}</Link>{' '}
-                <span className="muted">{incident.machine.name}</span>
-              </td>
-            )}
-            <td>{formatDateTime(incident.detected_at, timeZone)}</td>
-            <td>
-              <PriorityBadge priority={incident.priority} />
-            </td>
-            <td>{incident.machine_stopped ? 'Sí' : 'No'}</td>
-            <td>{incident.assigned_technician?.full_name ?? '—'}</td>
-            <td>{formatHours(incident.worked_minutes)}</td>
-            <td>
-              <IncidentStatusBadge status={incident.status} />
-            </td>
+    <div className="table-wrap">
+      <table className="table--stack">
+        <thead>
+          <tr>
+            <th scope="col">Avería</th>
+            {showMachine && <th scope="col">Máquina</th>}
+            <th scope="col">Detección</th>
+            <th scope="col">Prioridad</th>
+            <th scope="col">Parada</th>
+            <th scope="col">Técnico</th>
+            <th scope="col" className="num">
+              Horas
+            </th>
+            <th scope="col">Estado</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {incidents.map((incident) => (
+            <tr key={incident.id}>
+              <td className="cell--wide" data-label="Avería">
+                <Link className="cell-link" to={`/averias/${String(incident.id)}`}>
+                  {incident.number}
+                </Link>
+                <span className="cell-title">{incident.title}</span>
+              </td>
+              {showMachine && (
+                <td className="cell--wide" data-label="Máquina">
+                  <span>
+                    <Link className="cell-link" to={`/maquinas/${String(incident.machine.id)}`}>
+                      {incident.machine.code}
+                    </Link>
+                    <span className="cell-sub">{incident.machine.name}</span>
+                  </span>
+                </td>
+              )}
+              <td className="nowrap" data-label="Detección">
+                {formatDateTime(incident.detected_at, timeZone)}
+              </td>
+              <td data-label="Prioridad">
+                <span>
+                  <PriorityBadge priority={incident.priority} />
+                </span>
+              </td>
+              <td data-label="Parada">
+                {incident.machine_stopped ? (
+                  <span className="stopped">
+                    <Icon name="pause" size={15} />
+                    Sí
+                  </span>
+                ) : (
+                  <span className="muted">No</span>
+                )}
+              </td>
+              <td data-label="Técnico">
+                {incident.assigned_technician?.full_name ?? (
+                  <span className="muted">Sin asignar</span>
+                )}
+              </td>
+              <td className="num" data-label="Horas">
+                {formatHours(incident.worked_minutes)}
+              </td>
+              <td data-label="Estado">
+                <span>
+                  <IncidentStatusBadge status={incident.status} />
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }
