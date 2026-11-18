@@ -1,4 +1,12 @@
+import { Icon, type IconName } from '../shared/components/Icon'
+import { PageHeader } from '../shared/components/PageHeader'
 import { useHealth, type HealthState } from './useHealth'
+
+const ICONS: Record<'ok' | 'error' | 'pending', IconName> = {
+  ok: 'checkCircle',
+  error: 'alert',
+  pending: 'clock',
+}
 
 function describe(state: HealthState): { label: string; tone: 'ok' | 'error' | 'pending' } {
   switch (state.kind) {
@@ -19,18 +27,28 @@ export function SystemStatusPage() {
   const migration = state.kind === 'ready' ? state.health.migration : null
 
   return (
-    <section className="card" aria-labelledby="health-title">
-      <h1 id="health-title">Estado del sistema</h1>
-      <p role="status" className={`status status--${tone}`}>
-        {label}
-      </p>
-      <dl className="details">
-        <dt>Revisión del esquema</dt>
-        <dd>{migration ?? '—'}</dd>
-      </dl>
-      <button type="button" onClick={reload} disabled={state.kind === 'loading'}>
-        Volver a comprobar
-      </button>
+    <section className="stack" aria-labelledby="health-title">
+      <PageHeader
+        titleId="health-title"
+        title="Estado del sistema"
+        description="Conexión de la interfaz con la API y la base de datos."
+      />
+      <div className="card stack">
+        <p role="status" className={`status status--${tone}`}>
+          <Icon name={ICONS[tone]} />
+          {label}
+        </p>
+        <dl className="details">
+          <dt>Revisión del esquema</dt>
+          <dd className="mono">{migration ?? '—'}</dd>
+        </dl>
+        <div className="actions">
+          <button type="button" onClick={reload} disabled={state.kind === 'loading'}>
+            <Icon name="refresh" size={16} />
+            Volver a comprobar
+          </button>
+        </div>
+      </div>
     </section>
   )
 }

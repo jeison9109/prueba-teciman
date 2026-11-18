@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatDate, formatEuros, formatHours, orDash } from './format'
+import { formatDate, formatEuros, formatHours, initials, orDash } from './format'
 
 describe('format', () => {
   it('convierte minutos a horas con coma decimal', () => {
@@ -17,5 +17,11 @@ describe('format', () => {
     expect(formatEuros('35.50').replace(/\s/g, ' ')).toBe('35,50 €')
     expect(formatEuros(null)).toBe('—')
     expect(orDash('  ')).toBe('—')
+  })
+
+  it('obtiene las iniciales de nombre y primer apellido', () => {
+    expect(initials('Rosa Martín Vidal')).toBe('RM')
+    expect(initials('  ana  ')).toBe('A')
+    expect(initials('')).toBe('')
   })
 })

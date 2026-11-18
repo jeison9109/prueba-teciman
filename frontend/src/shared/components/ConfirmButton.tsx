@@ -22,6 +22,7 @@ export function ConfirmButton({
 }: ConfirmButtonProps) {
   const [asking, setAsking] = useState(false)
   const className = danger ? 'button--danger' : undefined
+  const confirmClass = danger ? 'button--danger-solid' : 'button--primary'
   if (!asking) {
     return (
       <button
@@ -37,11 +38,11 @@ export function ConfirmButton({
     )
   }
   return (
-    <span className="confirm" role="group" aria-label={question}>
-      <span>{question}</span>
+    <span className={`confirm${danger ? ' confirm--danger' : ''}`} role="group" aria-label={question}>
+      <span className="confirm__question">{question}</span>
       <button
         type="button"
-        className={className}
+        className={confirmClass}
         disabled={pending}
         onClick={() => {
           setAsking(false)
