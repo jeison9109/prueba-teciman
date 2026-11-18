@@ -1,6 +1,7 @@
 import { useState, type SubmitEvent } from 'react'
 import { ErrorMessage } from '../../shared/components/AsyncStatus'
 import { SelectField, TextField } from '../../shared/components/Field'
+import { Icon } from '../../shared/components/Icon'
 import { optionsFrom } from '../../shared/utils/options'
 import type { SubmitState } from '../../shared/hooks/useSubmit'
 import type { Person, PersonInput, Role, Specialty } from './api'
@@ -129,8 +130,9 @@ export function PersonForm({
         hint="Opcional. Hasta dos decimales, p. ej. 35,50"
       />
       {submitState.error && <ErrorMessage message={submitState.error} />}
-      <div className="actions">
+      <div className="actions form-footer">
         <button type="submit" className="button--primary" disabled={submitState.pending}>
+          <Icon name="check" size={16} />
           {submitState.pending ? 'Guardando…' : submitLabel}
         </button>
         {onCancel && (

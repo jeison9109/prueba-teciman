@@ -1,6 +1,7 @@
 import { useState, type SubmitEvent } from 'react'
 import { ErrorMessage } from '../../shared/components/AsyncStatus'
 import { SelectField, TextField } from '../../shared/components/Field'
+import { Icon } from '../../shared/components/Icon'
 import { optionsFrom } from '../../shared/utils/options'
 import type { SubmitState } from '../../shared/hooks/useSubmit'
 import type { Criticality, EditableAdminStatus, Machine, MachineInput } from './api'
@@ -164,8 +165,9 @@ export function MachineForm({
         error={errors.commissioning_date}
       />
       {submitState.error && <ErrorMessage message={submitState.error} />}
-      <div className="actions form__full">
+      <div className="actions form__full form-footer">
         <button type="submit" className="button--primary" disabled={submitState.pending}>
+          <Icon name="check" size={16} />
           {submitState.pending ? 'Guardando…' : submitLabel}
         </button>
         <button type="button" onClick={onCancel} disabled={submitState.pending}>
